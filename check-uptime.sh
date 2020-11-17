@@ -4,10 +4,8 @@
 
 while :
 do
-
 	if [ $(curl -s -o /dev/null -w "%{http_code}" example.com) -ne 200 ]; then
 		echo "Site is down!"
 	fi
 	sleep 1
-  
 done
