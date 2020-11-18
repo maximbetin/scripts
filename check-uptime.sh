@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Infinite loop that keeps sending curl HTTP requests to the endpoint every 1 second. If the returned HTTP code is not 200, displays a warning message.
+# Infinite loop that keeps sending curl HTTP requests to the endpoint every 1 second. If the returned HTTP code is not 200, displays a warning message. Stop it with CTRL+C.
 
 while :
 do
