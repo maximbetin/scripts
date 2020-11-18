@@ -13,7 +13,7 @@ before.set(2020,9,29,10,42,0)
 println "Jobs ran between " + after.getTime() + " - " + before.getTime()
 
 // Use regex to filter by job name
-def regex = ~/(.*)(job-name)(.*)/
+def regex = ~/(.*)(JOB-NAME)(.*)/
 
 for (job in jenkins.getAllItems(Job.class)) {
   for(Run run in job.getBuilds()){
