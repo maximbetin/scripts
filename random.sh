@@ -10,6 +10,6 @@ kubectl delete job --ignore-not-found=true $(kubectl get job -o=jsonpath='{.item
 kubectl get pods -n $namespace | grep Error | awk '{print $1}' | xargs kubectl delete pod -n $namespace 2>/dev/null || echo -e "No Error pods to clean"
 
 # Clean up ReplicaSets
-kubectl get rs -n $namespace -o=jsonpath='{range .items[?(@.spec.replicas=="0" && @.status.replicas=="0" && @.status.readyReplicas=="0")]}{.metadata.name}{"\n"}' | xargs kubectl delete rs -n $namespace
+ kubectl get rs -n $namespace | awk '$2=="0" && $3=="0" && $4=="0" {print $1}' | xargs -r kubectl delete rs -n $namespace
 
 
