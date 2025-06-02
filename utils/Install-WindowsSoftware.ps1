@@ -1,13 +1,23 @@
 function Install-WindowsSoftware {
   param (
     [string[]]$Apps = @(
-      "Git.Git", "7zip.7zip", "Python.Python.3", "ALCPU.CoreTemp",
-      "builtbybel.Wintoys", "MedalB.V.Medal", "Google.Chrome",
-      "Microsoft.AzureCLI", "Notepad++.Notepad++", "Microsoft.PowerToys",
-      "VideoLAN.VLC", "Microsoft.Winget.Source", "Skillbrains.Lightshot",
-      "Microsoft.PowerShell", "Chocolatey.Chocolatey", "Anysphere.Cursor",
-      "WhatsApp.WhatsApp", "qBittorrent.qBittorrent", "RafaelRivera.DynamicTheme",
-      "Microsoft.WindowsTerminal", "Microsoft.VisualStudioCode"
+      "Git.Git",
+      "7zip.7zip",
+      "VideoLAN.VLC",
+      "Google.Chrome",
+      "ALCPU.CoreTemp",
+      "MedalB.V.Medal",
+      "Anysphere.Cursor",
+      "Python.Python.3.13",
+      "Microsoft.AzureCLI",
+      "Notepad++.Notepad++",
+      "Microsoft.PowerToys",
+      "Microsoft.PowerShell",
+      "Skillbrains.Lightshot",
+      "Chocolatey.Chocolatey",
+      "Microsoft.WindowsTerminal",
+      "Microsoft.VisualStudioCode",
+      "c0re100.qBittorrent-Enhanced-Edition"
     ),
     [switch]$DryRun
   )
@@ -30,18 +40,18 @@ function Install-WindowsSoftware {
   # Loop through apps
   foreach ($appId in $Apps) {
     if ($DryRun) {
-      Write-Host "🔍 Checking $appId..." -ForegroundColor Gray
-      $found = winget search --id $appId -e | Select-String $appId
+      Write-Host "Checking $appId..." -ForegroundColor Gray
+      $found = winget search --id $appId -e | Select-String -SimpleMatch $appId
       if ($found) {
-        Write-Host "✔ Found in Winget: $appId" -ForegroundColor Green
+        Write-Host "Found in Winget: $appId" -ForegroundColor Green
       } else {
         Write-Warning "$appId NOT found in Winget. Will check Chocolatey..."
         $chocoName = ($appId -split '\.')[-1]
-        $chocoResult = choco list $chocoName -e | Select-String $chocoName
+        $chocoResult = choco list $chocoName -e | Select-String -SimpleMatch $chocoName
         if ($chocoResult) {
-          Write-Host "✔ Found in Chocolatey: $chocoName" -ForegroundColor DarkGreen
+          Write-Host "Found in Chocolatey: $chocoName" -ForegroundColor DarkGreen
         } else {
-          Write-Error "✖ $appId NOT found in either Winget or Chocolatey."
+          Write-Error "$appId NOT found in either Winget or Chocolatey."
         }
       }
     } else {
