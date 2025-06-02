@@ -7,6 +7,8 @@ A collection of personal scripts and configurations for development environment 
 ### Utils
 Contains utility scripts and VS Code configurations:
 - `Get-AllInstalledSoftware.ps1`: PowerShell script to get all installed software on the system
+- `Install-WindowsSoftware`: Script for installing Windows software
+- `Set-WindowsSettings.ps1`: PowerShell script to configure Windows settings
 - `vscode_extensions.json`: VS Code extensions list for installation
 - `vscode_settings.json`: Personal VS Code settings
 

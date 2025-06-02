@@ -1,6 +1,9 @@
 Function Get-AllInstalledSoftware {
   [CmdletBinding()]
-  Param()
+  Param(
+    [Parameter(Mandatory = $false)]
+    [string]$OutputFile = "InstalledSoftware.txt"
+  )
 
   $softwareList = New-Object System.Collections.Generic.List[PSObject]
 
@@ -58,5 +61,16 @@ Function Get-AllInstalledSoftware {
   }
 
   # Filter out duplicates and format
-  $softwareList | Sort-Object Name | Select-Object -Unique Name, Version, Publisher, InstallDate, Source | Format-Table -AutoSize
+  $results = $softwareList | Sort-Object Name | Select-Object -Unique Name, Version, Publisher, InstallDate, Source
+
+  # Output to console
+  $results | Format-Table -AutoSize
+
+  # Output to file
+  try {
+    $results | Format-Table -AutoSize | Out-String | Out-File -FilePath $OutputFile -Encoding UTF8
+    Write-Host "Results have been written to: $OutputFile" -ForegroundColor Green
+  } catch {
+    Write-Warning "Could not write to output file '$OutputFile': $($_.Exception.Message)"
+  }
 }
