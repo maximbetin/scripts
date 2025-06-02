@@ -1,10 +1,10 @@
 #!/bin/bash
 
-# Endless loop that keeps sending HTTP GET requests to the endpoint every 1 second. If the returned HTTP code is not a 200, displays a warning message. Stop it with CTRL+C.
+# Keep checking the uptime of the site every 1 second. If the site is down, display a warning message.
 while :
 do
- if [ $(curl -s -o /dev/null -w "%{http_code}" example.com) -ne 200 ]; then
-  echo "Site is down!"
- fi
- sleep 1
+  if [ $(curl -s -o /dev/null -w "%{http_code}" https://www.google.com) -ne 200 ]; then
+    echo "Site is down!"
+  fi
+  sleep 1
 done

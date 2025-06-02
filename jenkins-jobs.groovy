@@ -20,7 +20,7 @@ for (job in jenkins.getAllItems(Job.class)) {
     if (run.getTimestamp()?.before(before) && run.getTimestamp()?.after(after)) {
       if(job.name ==~ regex) {
         println "" + run.getResult() + " " + job.name + " " + run.getTime()
-      }  
+      }
     }
   }
 }

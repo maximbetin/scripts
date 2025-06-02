@@ -1,6 +1,6 @@
-# Script used to migrate/copy CICD variables and their properties based on the selected names (prefixed by KUBECONF_K8S_CLUSTER) and test/prod environment
-
 #!/usr/bin/env bash
+
+# Script used to migrate/copy CICD variables and their properties based on the selected names (prefixed by KUBECONF_K8S_CLUSTER) and test/prod environment
 
 # Pre-requisites:
 # 1. Have jq installed: brew install jq
@@ -24,8 +24,7 @@ get_data_from_url() {
   results=""
 
   # $url will be empty if there’s no rel="next" link header
-  while [ "$url" ]
-  do
+  while [ "$url" ]; do
     # Make an HTTP GET request
     response=$(curl --request GET --include --show-error --silent --header "PRIVATE-TOKEN: $GITLAB_ACCESS_TOKEN" "$url")
     # Extract the HTTP headers
@@ -55,14 +54,13 @@ set_group_variable() {
 
   # Make an HTTP POST/PUT request
   response=$(curl --request "$request_method" --include --show-error --silent --header "PRIVATE-TOKEN: $GITLAB_ACCESS_TOKEN" "$url" \
-            --form "key=$variable_key" --form "value=$variable_value" --form "variable_type=$variable_type" \
-            --form "protected=$variable_protected" --form "masked=$variable_masked" \
-            --form "environment_scope=$variable_scope")
+    --form "key=$variable_key" --form "value=$variable_value" --form "variable_type=$variable_type" \
+    --form "protected=$variable_protected" --form "masked=$variable_masked" \
+    --form "environment_scope=$variable_scope")
 }
 
 # Parameters
-while getopts 'c:e:' option
-do
+while getopts 'c:e:' option; do
   case "$option" in
   c) cluster_name=${OPTARG} ;;
   e) gitlab_env=${OPTARG} ;;
@@ -71,12 +69,10 @@ do
 done
 
 # Set the GitLab Group vars based on the selected cluster
-if [ "$cluster_name" == "k8s-cluster1" ]
-then
+if [ "$cluster_name" == "k8s-cluster1" ]; then
   src_gitlab_var_prefix="KUBECONF_K8S_CLUSTER1_"
   dst_gitlab_var_prefix="KUBECONF_K8S_CLUSTER2_"
-elif [ "$cluster_name" == "k8s-prod" ]
-then
+elif [ "$cluster_name" == "k8s-prod" ]; then
   src_gitlab_var_prefix="KUBECONF_K8S_CLUSTER3_"
   dst_gitlab_var_prefix="KUBECONF_K8S_CLUSTER4_"
 else
@@ -85,11 +81,9 @@ else
 fi
 
 # Set the GitLab base URL
-if [ "$gitlab_env" == "test" ]
-then
+if [ "$gitlab_env" == "test" ]; then
   gitlab_base_url="https://gitlabtest.com/api/v4/"
-elif [ "$gitlab_env" == "prod" ]
-then
+elif [ "$gitlab_env" == "prod" ]; then
   gitlab_base_url="https://gitlabprod.com/api/v4/"
 else
   echo "GitLab environment invalid. Choose either \"-e test\" or \"-e prod\""
@@ -97,7 +91,7 @@ else
 fi
 
 # Create logs folder
-mkdir -p logs/${cluster_name}
+mkdir -p logs/"${cluster_name}"
 
 echo "Getting the list of GitLab Group IDs from $gitlab_base_url..."
 
@@ -112,8 +106,7 @@ group_ids=($(echo "$results" | jq -r '.[].id'))
 group_urls=($(echo "$results" | jq -r '.[].web_url'))
 
 # Iterate over each Group ID
-for ((i=0;i<${#group_ids[@]};i++))
-do
+for ((i = 0; i < ${#group_ids[@]}; i++)); do
   group_id="${group_ids[i]}"
   group_url="${group_urls[i]}"
 
@@ -123,20 +116,17 @@ do
   get_data_from_url "$url"
 
   # If CICD variables found in the Group
-  if [ "$results" != " []" ]
-  then
+  if [ "$results" != " []" ]; then
     echo -e "\nGroup [$group_url]:\n"
 
     # Get all the CICD variable keys (names)
     variable_keys=$(echo "$results" | jq -r '.[].key')
 
     # Iterate over each CICD variable key
-    for variable_key in $variable_keys
-    do
+    for variable_key in $variable_keys; do
 
       # If the CICD variable key (name) starts with source variable name prefix
-      if [[ "$variable_key" =~ ^$src_gitlab_var_prefix ]]
-      then
+      if [[ "$variable_key" =~ ^$src_gitlab_var_prefix ]]; then
         # Form the URL to retrieve the CICD variable's details (from its key)
         url="${gitlab_base_url}groups/$group_id/variables/$variable_key"
 
@@ -162,8 +152,7 @@ do
         get_data_from_url "$url"
 
         # If the dst CICD variable name already exists (200 returned), update it
-        if [[ "$headers" == *"200"* ]]
-        then
+        if [[ "$headers" == *"200"* ]]; then
           echo -n "[$dst_variable_name]: The variable already exists, updating its contents... "
 
           # Form the URL to update the CICD variable
@@ -173,13 +162,12 @@ do
           set_group_variable "$url" "PUT" "$dst_variable_name" "$variable_value" "$variable_type" "$variable_protected" "$variable_masked" "$variable_scope"
 
           # If HTTP response code was 200 (variable updated)
-          if [[ "$response" == *"200"* ]]
-          then
+          if [[ "$response" == *"200"* ]]; then
             echo "Success"
-            echo "date=$(date) level=INFO group=${group_url} variable=${dst_variable_name} http_response=${response}" >> logs/${cluster_name}/cicd-var-migration.log
+            echo "date=$(date) level=INFO group=${group_url} variable=${dst_variable_name} http_response=${response}" >>logs/"${cluster_name}"/cicd-var-migration.log
           else
             echo "Error"
-            echo "date=$(date) level=ERROR group=${group_url} variable=${dst_variable_name} http_response=${response}" >> logs/${cluster_name}/cicd-var-migration.log
+            echo "date=$(date) level=ERROR group=${group_url} variable=${dst_variable_name} http_response=${response}" >>logs/"${cluster_name}"/cicd-var-migration.log
           fi
         fi
       fi

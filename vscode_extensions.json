@@ -1,0 +1,187 @@
+[
+  {
+    "identifier": {
+      "id": "ms-dotnettools.vscode-dotnet-runtime"
+    }
+  },
+  {
+    "identifier": {
+      "id": "github.copilot-chat"
+    }
+  },
+  {
+    "identifier": {
+      "id": "github.copilot"
+    }
+  },
+  {
+    "identifier": {
+      "id": "ms-toolsai.vscode-jupyter-cell-tags"
+    }
+  },
+  {
+    "identifier": {
+      "id": "ms-toolsai.vscode-jupyter-slideshow"
+    }
+  },
+  {
+    "identifier": {
+      "id": "ms-toolsai.jupyter-renderers"
+    }
+  },
+  {
+    "identifier": {
+      "id": "ms-toolsai.jupyter"
+    }
+  },
+  {
+    "identifier": {
+      "id": "ms-python.vscode-pylance"
+    }
+  },
+  {
+    "identifier": {
+      "id": "gurumukhi.selected-lines-count"
+    }
+  },
+  {
+    "identifier": {
+      "id": "ms-toolsai.jupyter-keymap"
+    }
+  },
+  {
+    "identifier": {
+      "id": "codezombiech.gitignore"
+    }
+  },
+  {
+    "identifier": {
+      "id": "usernamehw.remove-empty-lines"
+    }
+  },
+  {
+    "identifier": {
+      "id": "bradzacher.vscode-coloured-status-bar-problems"
+    }
+  },
+  {
+    "identifier": {
+      "id": "ms-azure-devops.azure-pipelines"
+    }
+  },
+  {
+    "identifier": {
+      "id": "dbaeumer.vscode-eslint"
+    }
+  },
+  {
+    "identifier": {
+      "id": "ms-vscode.test-adapter-converter"
+    }
+  },
+  {
+    "identifier": {
+      "id": "yzhang.markdown-all-in-one"
+    }
+  },
+  {
+    "identifier": {
+      "id": "donjayamanne.githistory"
+    }
+  },
+  {
+    "identifier": {
+      "id": "mechatroner.rainbow-csv"
+    }
+  },
+  {
+    "identifier": {
+      "id": "tyriar.sort-lines"
+    }
+  },
+  {
+    "identifier": {
+      "id": "hbenl.vscode-test-explorer"
+    }
+  },
+  {
+    "identifier": {
+      "id": "visualstudioexptteam.vscodeintellicode"
+    }
+  },
+  {
+    "identifier": {
+      "id": "ms-azuretools.vscode-azureresourcegroups"
+    }
+  },
+  {
+    "identifier": {
+      "id": "ms-vscode.azurecli"
+    }
+  },
+  {
+    "identifier": {
+      "id": "christopherhx.azure-pipelines-vscode-ext"
+    }
+  },
+  {
+    "identifier": {
+      "id": "ms-python.autopep8"
+    }
+  },
+  {
+    "identifier": {
+      "id": "littlefoxteam.vscode-python-test-adapter"
+    }
+  },
+  {
+    "identifier": {
+      "id": "ms-vscode.powershell"
+    }
+  },
+  {
+    "identifier": {
+      "id": "msazurermtools.azurerm-vscode-tools"
+    }
+  },
+  {
+    "identifier": {
+      "id": "almenon.arepl"
+    }
+  },
+  {
+    "identifier": {
+      "id": "oderwat.indent-rainbow"
+    }
+  },
+  {
+    "identifier": {
+      "id": "ms-python.python"
+    }
+  },
+  {
+    "identifier": {
+      "id": "ms-python.debugpy"
+    }
+  },
+  {
+    "identifier": {
+      "id": "ms-python.isort"
+    }
+  },
+  {
+    "identifier": {
+      "id": "ms-azuretools.vscode-docker"
+    }
+  },
+  {
+    "identifier": {
+      "id": "ms-azuretools.vscode-bicep"
+    }
+  },
+  {
+    "identifier": {
+      "id": "foxundermoon.shell-format"
+    }
+  }
+]
