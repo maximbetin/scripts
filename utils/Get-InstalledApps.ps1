@@ -1,4 +1,4 @@
-Function Get-AllInstalledSoftware {
+Function Get-InstalledApps {
   [CmdletBinding()]
   Param(
     [Parameter(Mandatory = $false)]
@@ -61,14 +61,14 @@ Function Get-AllInstalledSoftware {
   }
 
   # Filter out duplicates and format
-  $results = $softwareList | Sort-Object Name | Select-Object -Unique Name, Version, Publisher, InstallDate, Source
+  $results = $softwareList | Sort-Object Name | Select-Object -Unique Name
 
-  # Output to console
-  $results | Format-Table -AutoSize
+  # Output to console (simple list format)
+  $results | ForEach-Object { $_.Name }
 
   # Output to file
   try {
-    $results | Format-Table -AutoSize | Out-String | Out-File -FilePath $OutputFile -Encoding UTF8
+    $results | ForEach-Object { $_.Name } | Out-File -FilePath $OutputFile -Encoding UTF8
     Write-Host "Results have been written to: $OutputFile" -ForegroundColor Green
   } catch {
     Write-Warning "Could not write to output file '$OutputFile': $($_.Exception.Message)"

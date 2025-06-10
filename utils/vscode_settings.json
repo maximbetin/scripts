@@ -77,5 +77,10 @@
   "python.analysis.autoImportCompletions": true,
   "isort.args": [
     "--line-length=160"
-  ]
+  ],
+  "cursor.cpp.enablePartialAccepts": true,
+  "python.createEnvironment.trigger": "off",
+  "git.ignoreRebaseWarning": true,
+  "explorer.confirmPasteNative": false,
+  "git.replaceTagsWhenPull": true
 }

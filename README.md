@@ -6,11 +6,11 @@ A collection of personal scripts and configurations for development environment 
 
 ### Utils
 Contains utility scripts and VS Code configurations:
-- `Get-AllInstalledSoftware.ps1`: PowerShell script to get all installed software on the system
-- `Install-WindowsSoftware`: Script for installing Windows software
-- `Set-WindowsSettings.ps1`: PowerShell script to configure Windows settings
-- `vscode_extensions.json`: VS Code extensions list for installation
 - `vscode_settings.json`: Personal VS Code settings
+- `vscode_extensions.txt`: VS Code extensions list for installation
+- `Convert-WavToMp3.ps1`: PowerShell script to convert WAV files to MP3
+- `Get-InstalledApps.ps1`: PowerShell script to get all installed apps on the system
+- `Convert-MediaFiles.ps1`: PowerShell script to convert media files to the desired format (e.g. video, image, etc.)
 
 ### Kubernetes
 Collection of Kubernetes management scripts:
