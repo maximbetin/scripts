@@ -13,10 +13,10 @@ param(
   [string]$FFmpegPath = "ffmpeg.exe",
 
   [Parameter(Mandatory = $false, HelpMessage = "JPEG quality for image conversion (1=best, 31=worst).")]
-  [int]$ImageQuality = 2,
+  [int]$ImageQuality = 1,
 
   [Parameter(Mandatory = $false, HelpMessage = "Video encoding preset for MP4 conversion (e.g., 'medium', 'fast', 'slow').")]
-  [string]$VideoPreset = "medium",
+  [string]$VideoPreset = "slow",
 
   [Parameter(Mandatory = $false, HelpMessage = "Constant Rate Factor for video encoding (lower=higher quality, larger file).")]
   [int]$VideoCRF = 23,
@@ -37,7 +37,7 @@ $script:LogBuffer = [System.Collections.ArrayList]::new() # Buffer for log entri
 $script:LogFileStream = $null                                # Stream object for writing to log file
 
 # Define supported file extensions for discovery (case-insensitive on Windows)
-$imageExtensions = "*.jpg", "*.jpeg", "*.png", "*.webp" # Added *.webp
+$imageExtensions = "*.jpg", "*.jpeg", "*.png", "*.webp"
 $videoExtensions = "*.3gp", "*.mkv", "*.mp4", "*.avi"
 
 # --- Helper Functions ---
@@ -97,7 +97,7 @@ function Test-FFmpegAccessibility {
         [boolean] True if FFmpeg is accessible, False otherwise.
     #>
   param (
-    [Parameter(Mandory = $true)]
+    [Parameter(Mandatory = $true)]
     [string]$FFMpegExePath
   )
   Write-Log "Attempting to verify FFmpeg accessibility at '$FFMpegExePath'..." "DEBUG"
