@@ -16,13 +16,13 @@ param(
   [int]$ImageQuality = 1,
 
   [Parameter(Mandatory = $false, HelpMessage = "Video encoding preset for MP4 conversion (e.g., 'medium', 'fast', 'slow').")]
-  [string]$VideoPreset = "slow",
+  [string]$VideoPreset = "veryslow",
 
   [Parameter(Mandatory = $false, HelpMessage = "Constant Rate Factor for video encoding (lower=higher quality, larger file).")]
-  [int]$VideoCRF = 23,
+  [int]$VideoCRF = 18,
 
   [Parameter(Mandatory = $false, HelpMessage = "Audio bitrate for video conversion (e.g., '128k', '192k').")]
-  [string]$AudioBitrate = "128k",
+  [string]$AudioBitrate = "192k",
 
   [Parameter(Mandatory = $false, HelpMessage = "If specified, original files are moved to a 'Processed_Originals' subfolder instead of being deleted.")]
   [switch]$MoveOriginals,
