@@ -1,86 +1,86 @@
 {
-  "azure-pipelines-vscode-ext.enable-semantic-highlighting": true,
-  "bicep.enableSurveys": false,
-  "editor.tabSize": 2,
-  "editor.formatOnSave": true,
-  "editor.insertSpaces": true,
-  "editor.codeActionsOnSave": {
-    "source.fixAll": "always",
-    "source.organizeImports": "always"
-  },
-  "editor.minimap.enabled": false,
-  "editor.autoIndent": "advanced",
-  "editor.detectIndentation": false,
-  "editor.renderWhitespace": "all",
-  "editor.guides.bracketPairs": "active",
-  "editor.semanticHighlighting.enabled": true,
-  "editor.bracketPairColorization.enabled": true,
-  "explorer.confirmDelete": false,
-  "explorer.confirmDragAndDrop": false,
-  "extensions.allowed": {
-    "*": true
-  },
-  "files.autoSaveDelay": 5000,
-  "files.trimFinalNewlines": true,
-  "files.autoSave": "onFocusChange",
-  "files.trimTrailingWhitespace": true,
-  "git.autofetch": true,
-  "git.confirmSync": false,
-  "git.enableSmartCommit": true,
-  "github.copilot.chat.commitMessageGeneration.instructions": [
-    {
-      "text": "Use conventional commit message format."
-    }
-  ],
-  "powershell.codeFolding.enable": true,
-  "powershell.codeFormatting.preset": "OTBS",
-  "powershell.codeFormatting.alignPropertyValuePairs": true,
-  "powershell.integratedConsole.focusConsoleOnExecute": false,
-  "security.workspace.trust.untrustedFiles": "open",
-  "terminal.integrated.enableMultiLinePasteWarning": "never",
-  "workbench.editor.enablePreview": false,
-  "[azure-pipelines]": {
-    "editor.quickSuggestions": {
-      "other": true,
-      "strings": true,
-      "comments": true
-    }
-  },
-  "[json]": {
-    "editor.defaultFormatter": "vscode.json-language-features"
-  },
-  "[jsonc]": {
-    "editor.defaultFormatter": "vscode.json-language-features"
-  },
-  "[javascript]": {
-    "editor.defaultFormatter": "vscode.typescript-language-features"
-  },
-  "[python]": {
-    "editor.defaultFormatter": "ms-python.autopep8"
-  },
-  "cursor.cpp.disabledLanguages": [
-    "scminput"
-  ],
-  "workbench.colorTheme": "Default Dark+",
-  "github.copilot.enable": {
-    "*": false,
-    "plaintext": false,
-    "markdown": false,
-    "scminput": false
-  },
-  "autopep8.args": [
-    "--max-line-length=160",
-    "--indent-size=2",
-    "--ignore=E121"
-  ],
-  "python.analysis.typeCheckingMode": "basic",
-  "python.analysis.autoImportCompletions": true,
-  "isort.args": [
-    "--line-length=160"
-  ],
-  "cursor.cpp.enablePartialAccepts": true,
-  "python.createEnvironment.trigger": "off",
-  "git.ignoreRebaseWarning": true,
-  "explorer.confirmPasteNative": false,
-  "git.replaceTagsWhenPull": true
+    "azure-pipelines-vscode-ext.enable-semantic-highlighting": true,
+    "bicep.enableSurveys": false,
+    "editor.tabSize": 4,
+    "editor.formatOnSave": true,
+    "editor.insertSpaces": true,
+    "editor.codeActionsOnSave": {
+        "source.fixAll": "always",
+        "source.organizeImports": "always"
+    },
+    "editor.minimap.enabled": false,
+    "editor.autoIndent": "advanced",
+    "editor.detectIndentation": false,
+    "editor.renderWhitespace": "all",
+    "editor.guides.bracketPairs": "active",
+    "editor.semanticHighlighting.enabled": true,
+    "editor.bracketPairColorization.enabled": true,
+    "explorer.confirmDelete": false,
+    "explorer.confirmDragAndDrop": false,
+    "extensions.allowed": {
+        "*": true
+    },
+    "files.autoSaveDelay": 5000,
+    "files.trimFinalNewlines": true,
+    "files.autoSave": "onFocusChange",
+    "files.trimTrailingWhitespace": true,
+    "git.autofetch": true,
+    "git.confirmSync": false,
+    "git.enableSmartCommit": true,
+    "github.copilot.chat.commitMessageGeneration.instructions": [
+        {
+            "text": "Use conventional commit message format."
+        }
+    ],
+    "powershell.codeFolding.enable": true,
+    "powershell.codeFormatting.preset": "OTBS",
+    "powershell.codeFormatting.alignPropertyValuePairs": true,
+    "powershell.integratedConsole.focusConsoleOnExecute": false,
+    "security.workspace.trust.untrustedFiles": "open",
+    "terminal.integrated.enableMultiLinePasteWarning": "never",
+    "workbench.editor.enablePreview": false,
+    "[azure-pipelines]": {
+        "editor.quickSuggestions": {
+            "other": true,
+            "strings": true,
+            "comments": true
+        }
+    },
+    "[json]": {
+        "editor.defaultFormatter": "vscode.json-language-features"
+    },
+    "[jsonc]": {
+        "editor.defaultFormatter": "vscode.json-language-features"
+    },
+    "[javascript]": {
+        "editor.defaultFormatter": "vscode.typescript-language-features"
+    },
+    "[python]": {
+        "editor.defaultFormatter": "ms-python.autopep8"
+    },
+    "cursor.cpp.disabledLanguages": [
+        "scminput"
+    ],
+    "workbench.colorTheme": "Default Dark+",
+    "github.copilot.enable": {
+        "*": false,
+        "plaintext": false,
+        "markdown": false,
+        "scminput": false
+    },
+    "autopep8.args": [
+        "--max-line-length=160",
+        "--indent-size=2",
+        "--ignore=E121"
+    ],
+    "python.analysis.typeCheckingMode": "basic",
+    "python.analysis.autoImportCompletions": true,
+    "isort.args": [
+        "--line-length=160"
+    ],
+    "cursor.cpp.enablePartialAccepts": true,
+    "python.createEnvironment.trigger": "off",
+    "git.ignoreRebaseWarning": true,
+    "explorer.confirmPasteNative": false,
+    "git.replaceTagsWhenPull": true
 }
