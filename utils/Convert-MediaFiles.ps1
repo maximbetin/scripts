@@ -27,6 +27,9 @@ param(
     [Parameter(Mandatory = $false, HelpMessage = "If specified, original files are moved to a 'Processed_Originals' subfolder instead of being deleted.")]
     [switch]$MoveOriginals,
 
+    [Parameter(Mandatory = $false, HelpMessage = "If specified, only rename files (no format conversion will be performed).")]
+    [switch]$RenameOnly,
+
     [Parameter(Mandatory = $false, HelpMessage = "Path to a log file for detailed script execution records.")]
     [string]$LogFile
 )
@@ -458,8 +461,8 @@ foreach ($file in $allSourceFiles) {
                 ActionType   = "Image"
             }
             Write-Log "    Action: Rename Image (JPG, but needs new name/case)." "DEBUG"
-        } else {
-            # It's a non-JPG image (PNG, WebP, etc.), needs conversion
+        } elseif (-not $RenameOnly) {
+            # It's a non-JPG image (PNG, WebP, etc.), needs conversion, but only if not RenameOnly
             $pendingActions += @{
                 Type         = "ImageConversion"
                 OriginalPath = $file.FullName
@@ -467,6 +470,8 @@ foreach ($file in $allSourceFiles) {
                 ActionType   = "Image"
             }
             Write-Log "    Action: Convert Image (non-JPG to JPG)." "DEBUG"
+        } else {
+            Write-Log "    Skipped: Conversion required but RenameOnly is set." "DEBUG"
         }
     }
     # Handle Video Files
@@ -494,8 +499,8 @@ foreach ($file in $allSourceFiles) {
                 ActionType   = "Video"
             }
             Write-Log "    Action: Rename Video (MP4, but needs new name/case)." "DEBUG"
-        } else {
-            # It's a non-MP4 video, needs conversion
+        } elseif (-not $RenameOnly) {
+            # It's a non-MP4 video, needs conversion, but only if not RenameOnly
             $pendingActions += @{
                 Type         = "VideoConversion"
                 OriginalPath = $file.FullName
@@ -503,6 +508,8 @@ foreach ($file in $allSourceFiles) {
                 ActionType   = "Video"
             }
             Write-Log "    Action: Convert Video (non-MP4 to MP4)." "DEBUG"
+        } else {
+            Write-Log "    Skipped: Conversion required but RenameOnly is set." "DEBUG"
         }
     } else {
         Write-Log "    Skipping unknown file type: $($file.FullName)" "DEBUG"
@@ -554,6 +561,13 @@ if ($PSCmdlet.ShouldProcess("process media files recursively in '$SourcePath'", 
             Write-Log "  Skipped: File already in desired format and name." "INFO"
             $skippedCount++
             continue # Move to the next action
+        }
+
+        # If RenameOnly is set, skip all conversion actions
+        if ($RenameOnly -and ($action.Type -eq "ImageConversion" -or $action.Type -eq "VideoConversion")) {
+            Write-Log "  Skipped: Conversion action ignored due to RenameOnly mode." "INFO"
+            $skippedCount++
+            continue
         }
 
         $ffmpegArgs = @()
