@@ -74,65 +74,56 @@ function Remove-GitBranch {
   Write-Host "Branch deletion process completed." -ForegroundColor Green
 }
 
-function Show-OurAlias {
-  [char]0x262D
-}
-
 # --- Git Aliases ---
-Set-Alias g       'git'
-Set-Alias gadd    'git add'
-Set-Alias gpus    'git push'
-Set-Alias gpull   'git pull'
-Set-Alias gdiff   'git diff'
-Set-Alias gcl     'git clone'
-Set-Alias gst     'git status'
-Set-Alias gb      'git branch'
-Set-Alias gco     'git checkout'
-Set-Alias gcmt    'git commit -m'
-Set-Alias gstp    'git stash pop'
-Set-Alias gsta    'git stash save'
-Set-Alias gstl    'git stash list'
-Set-Alias gdel    'Remove-GitBranch'
-Set-Alias grh     'git reset --hard HEAD'
-Set-Alias guser   'git config --global user.name'
-Set-Alias gemail  'git config --global user.email'
+function g { git }
+function gadd { git add }
+function gps { git push }
+function gpu { git pull }
+function gcl { git clone }
+function gb { git branch }
+function gdiff { git diff }
+function gst { git status }
+function gdel { Remove-GitBranch }
+function gcm { git commit -m $args }
+function greset { git reset --hard HEAD }
+function guser { git config --global user.name }
+function gmail { git config --global user.email }
+function gprune { git fetch --prune origin }
 
 # --- Docker Aliases ---
-Set-Alias d       'docker'
-Set-Alias dps     'docker ps'
-Set-Alias drm     'docker rm'
-Set-Alias drmi    'docker rmi'
-Set-Alias dlog    'docker logs'
-Set-Alias dstop   'docker stop'
-Set-Alias dpsa    'docker ps -a'
-Set-Alias dil     'docker images'
-Set-Alias dbd     'docker build .'
-Set-Alias dexec   'docker exec -it'
-Set-Alias dcdown  'docker-compose down'
-Set-Alias dcup    'docker-compose up -d'
-Set-Alias dcln    'docker system prune -f'
+function d { docker }
+function dps { docker ps }
+function drm { docker rm }
+function dl { docker logs }
+function drmi { docker rmi }
+function dstop { docker stop }
+function dpsa { docker ps -a }
+function db { docker build . }
+function dimg { docker images }
+function dcup { docker-compose up -d }
+function dcdown { docker-compose down }
+function dexec { docker exec -it $args }
+function dprune { docker system prune -f }
 
 # --- Kubernetes Aliases ---
-Set-Alias k       'kubectl'
-Set-Alias kget    'kubectl get'
-Set-Alias klogs   'kubectl logs'
-Set-Alias kdel    'kubectl delete'
-Set-Alias kver    'kubectl version'
-Set-Alias kpo     'kubectl get pods'
-Set-Alias kappl   'kubectl apply -f'
-Set-Alias kexec   'kubectl exec -it'
-Set-Alias kdesc   'kubectl describe'
-Set-Alias ksvc    'kubectl get services'
-Set-Alias kdep    'kubectl get deployments'
-Set-Alias kns     'kubectl config set-context --current --namespace'
+function k { kubectl }
+function kg { kubectl get }
+function kl { kubectl logs }
+function kv { kubectl version }
+function kdel { kubectl delete }
+function kd { kubectl describe }
+function kpo { kubectl get pods }
+function ksvc { kubectl get services }
+function ka { kubectl apply -f $args }
+function kdep { kubectl get deployments }
+function kexec { kubectl exec -it $args }
+function kns { kubectl config set-context --current --namespace $args }
 
 # --- General Utility Aliases ---
-Set-Alias cat     'Get-Content'
-Set-Alias source  ". `$PROFILE"
-Set-Alias h       'Get-History'
-Set-Alias grep    'Select-String'
-Set-Alias pkill   'Stop-Process -Name'
-Set-Alias ls      'Get-ChildItem -Force'
-Set-Alias ping    'Test-Connection -Count 4'
-Set-Alias ll      'Get-ChildItem -Force | Format-List'
-Set-Alias us      'Show-OurAlias'
+function c { Clear-Host }
+function us { [char]0x262D }
+function grep { Select-String }
+function ls { Get-ChildItem -Force }
+function ping { Test-Connection -Count 4 }
+function pkill { Stop-Process -Name $args }
+function ll { Get-ChildItem -Force | Format-List }
