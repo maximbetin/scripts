@@ -11,6 +11,11 @@ Contains utility scripts and VS Code configurations:
 - `Convert-WavToMp3.ps1`: PowerShell script to convert WAV files to MP3
 - `Get-InstalledApps.ps1`: PowerShell script to get all installed apps on the system
 - `Convert-MediaFiles.ps1`: PowerShell script to convert media files to the desired format (e.g. video, image, etc.)
+- `Profile.ps1`: Personal PowerShell profile with settings, aliases, functions, etc.
+  - If you are using PowerShell Core, rename it to `Microsoft.PowerShell_profile.ps1` and place it in the `%USERPROFILE%\Documents\PowerShell\` directory.
+  - If you are using VSCode PowerShell Extension, rename it to `Microsoft.VSCode_profile.ps1` and place it in the `%USERPROFILE%\Documents\PowerShell\` directory.
+  - If you are using PowerShell ISE, rename it to `Microsoft.PowerShell_profile.ps1` and place it in the `%USERPROFILE%\Documents\WindowsPowerShell\` directory.
+  - If you are using Windows PowerShell, rename it to `Microsoft.PowerShell_profile.ps1` and place it in the `%USERPROFILE%\Documents\WindowsPowerShell\` directory.
 
 ### Kubernetes
 Collection of Kubernetes management scripts:
