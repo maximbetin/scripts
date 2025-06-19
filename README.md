@@ -43,4 +43,4 @@ Each script contains its own documentation and usage instructions. Refer to the 
 - Bash shell (for shell scripts)
 
 ## License
-This repository is for personal use. Feel free to use these scripts as a reference for your own setup.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
