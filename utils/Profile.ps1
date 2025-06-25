@@ -24,7 +24,7 @@ function Remove-GitBranch {
     #>
   [CmdletBinding()]
   param (
-    [Parameter(Mandatory = $true, Position = 0)]
+    [Parameter(Mandatory = $true)]
     [string]$BranchName
   )
 
@@ -83,8 +83,8 @@ function gcl { git clone }
 function gb { git branch }
 function gdiff { git diff }
 function gst { git status }
-function gdel { Remove-GitBranch }
-function gcm { git commit -m $args }
+function gdel { Remove-GitBranch $args[0] }
+function gcm { git commit -m $args[0] }
 function greset { git reset --hard HEAD }
 function guser { git config --global user.name }
 function gmail { git config --global user.email }
@@ -114,10 +114,10 @@ function kdel { kubectl delete }
 function kd { kubectl describe }
 function kpo { kubectl get pods }
 function ksvc { kubectl get services }
-function ka { kubectl apply -f $args }
+function ka { kubectl apply -f $args[0] }
 function kdep { kubectl get deployments }
 function kexec { kubectl exec -it $args }
-function kns { kubectl config set-context --current --namespace $args }
+function kns { kubectl config set-context --current --namespace $args[0] }
 
 # --- General Utility Aliases ---
 function c { Clear-Host }
@@ -125,5 +125,5 @@ function us { [char]0x262D }
 function grep { Select-String }
 function ls { Get-ChildItem -Force }
 function ping { Test-Connection -Count 4 }
-function pkill { Stop-Process -Name $args }
+function pkill { Stop-Process -Name $args[0] }
 function ll { Get-ChildItem -Force | Format-List }
