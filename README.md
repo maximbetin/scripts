@@ -1,4 +1,4 @@
-# Maxim Scripts
+# Scripts
 
 A collection of personal scripts and configurations for development environment setup, automation, and DevOps tasks.
 
