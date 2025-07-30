@@ -1,44 +1,69 @@
 {
-    "azure-pipelines-vscode-ext.enable-semantic-highlighting": true,
-    "bicep.enableSurveys": false,
-    "editor.tabSize": 4,
-    "editor.formatOnSave": true,
-    "editor.insertSpaces": true,
+    "editor.autoIndent": "advanced",
+    "editor.bracketPairColorization.enabled": true,
     "editor.codeActionsOnSave": {
         "source.fixAll": "always",
         "source.organizeImports": "always"
     },
-    "editor.minimap.enabled": false,
-    "editor.autoIndent": "advanced",
     "editor.detectIndentation": false,
-    "editor.renderWhitespace": "all",
+    "editor.formatOnSave": true,
     "editor.guides.bracketPairs": "active",
+    "editor.insertSpaces": true,
+    "editor.minimap.enabled": false,
+    "editor.renderWhitespace": "all",
     "editor.semanticHighlighting.enabled": true,
-    "editor.bracketPairColorization.enabled": true,
+    "editor.tabSize": 4,
+    "files.autoSave": "onFocusChange",
+    "files.autoSaveDelay": 5000,
+    "files.trimFinalNewlines": true,
+    "files.trimTrailingWhitespace": true,
     "explorer.confirmDelete": false,
     "explorer.confirmDragAndDrop": false,
+    "explorer.confirmPasteNative": false,
+    "workbench.colorTheme": "Default Dark+",
+    "workbench.editor.enablePreview": false,
+    "azure-pipelines-vscode-ext.enable-semantic-highlighting": true,
+    "bicep.enableSurveys": false,
     "extensions.allowed": {
         "*": true
     },
-    "files.autoSaveDelay": 5000,
-    "files.trimFinalNewlines": true,
-    "files.autoSave": "onFocusChange",
-    "files.trimTrailingWhitespace": true,
     "git.autofetch": true,
     "git.confirmSync": false,
     "git.enableSmartCommit": true,
+    "git.ignoreRebaseWarning": true,
+    "git.replaceTagsWhenPull": true,
+    "github.copilot.enable": {
+        "*": false,
+        "plaintext": false,
+        "markdown": false,
+        "scminput": false
+    },
     "github.copilot.chat.commitMessageGeneration.instructions": [
         {
-            "text": "Use conventional commit message format."
+            "text": "For all code changes, include **commit messages in Conventional Commit format**:\n\n* Use `feat:` for new features\n* Use `fix:` for bug fixes\n* Use `refactor:` for non-breaking structural/code improvements\n* Use `chore:` for tooling, build config, or meta updates\n* Use `docs:` for documentation changes\n* Use `style:` for formatting or stylistic changes (no logic change)\n* Use `test:` for adding or updating tests\n* Use `perf:` for performance improvements\n* Use `ci:` for CI-related updates\n* Include a **scope** in parentheses when appropriate: `feat(api):`, `fix(ui):`, etc.\n\nExample:\n\n```bash\nfeat(api): add presigned URL support for file downloads\n```"
         }
     ],
+    "autopep8.args": [
+        "--max-line-length=160",
+        "--indent-size=4",
+        "--ignore=E121"
+    ],
+    "isort.args": [
+        "--line-length=160"
+    ],
+    "python.analysis.autoImportCompletions": true,
+    "python.analysis.typeCheckingMode": "basic",
+    "python.createEnvironment.trigger": "off",
     "powershell.codeFolding.enable": true,
-    "powershell.codeFormatting.preset": "OTBS",
     "powershell.codeFormatting.alignPropertyValuePairs": true,
+    "powershell.codeFormatting.preset": "OTBS",
     "powershell.integratedConsole.focusConsoleOnExecute": false,
-    "security.workspace.trust.untrustedFiles": "open",
     "terminal.integrated.enableMultiLinePasteWarning": "never",
-    "workbench.editor.enablePreview": false,
+    "security.workspace.trust.untrustedFiles": "open",
+    "cursor.cpp.disabledLanguages": [
+        "scminput"
+    ],
+    "cursor.cpp.enablePartialAccepts": true,
     "[azure-pipelines]": {
         "editor.quickSuggestions": {
             "other": true,
@@ -46,41 +71,16 @@
             "comments": true
         }
     },
+    "[javascript]": {
+        "editor.defaultFormatter": "vscode.typescript-language-features"
+    },
     "[json]": {
         "editor.defaultFormatter": "vscode.json-language-features"
     },
     "[jsonc]": {
         "editor.defaultFormatter": "vscode.json-language-features"
     },
-    "[javascript]": {
-        "editor.defaultFormatter": "vscode.typescript-language-features"
-    },
     "[python]": {
         "editor.defaultFormatter": "ms-python.autopep8"
-    },
-    "cursor.cpp.disabledLanguages": [
-        "scminput"
-    ],
-    "workbench.colorTheme": "Default Dark+",
-    "github.copilot.enable": {
-        "*": false,
-        "plaintext": false,
-        "markdown": false,
-        "scminput": false
-    },
-    "autopep8.args": [
-        "--max-line-length=160",
-        "--indent-size=2",
-        "--ignore=E121"
-    ],
-    "python.analysis.typeCheckingMode": "basic",
-    "python.analysis.autoImportCompletions": true,
-    "isort.args": [
-        "--line-length=160"
-    ],
-    "cursor.cpp.enablePartialAccepts": true,
-    "python.createEnvironment.trigger": "off",
-    "git.ignoreRebaseWarning": true,
-    "explorer.confirmPasteNative": false,
-    "git.replaceTagsWhenPull": true
+    }
 }
