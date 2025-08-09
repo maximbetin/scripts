@@ -1,5 +1,5 @@
 function Remove-GitBranch {
-  <#
+    <#
     .SYNOPSIS
     Deletes a specified Git branch locally and remotely with minimal interaction.
 
@@ -22,56 +22,56 @@ function Remove-GitBranch {
     - This version provides no confirmation. Use with care.
     - The remote is assumed to be 'origin'.
     #>
-  [CmdletBinding()]
-  param (
-    [Parameter(Mandatory = $true)]
-    [string]$BranchName
-  )
+    [CmdletBinding()]
+    param (
+        [Parameter(Mandatory = $true)]
+        [string]$BranchName
+    )
 
-  # Basic check if Git is available
-  if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
-    Write-Error "Git is not installed or not in your PATH."
-    return
-  }
+    # Basic check if Git is available
+    if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
+        Write-Error "Git is not installed or not in your PATH."
+        return
+    }
 
-  # Get current branch for safety check
-  $currentBranch = (git rev-parse --abbrev-ref HEAD 2>$null).Trim()
-  if ($LASTEXITCODE -ne 0) {
-    Write-Error "Not in a Git repository."
-    return
-  }
+    # Get current branch for safety check
+    $currentBranch = (git rev-parse --abbrev-ref HEAD 2>$null).Trim()
+    if ($LASTEXITCODE -ne 0) {
+        Write-Error "Not in a Git repository."
+        return
+    }
 
-  # Prevent deleting the current branch
-  if ($currentBranch -eq $BranchName) {
-    Write-Error "Error: You cannot delete the branch you are currently on. Please checkout another branch first (e.g., 'git checkout main')."
-    return
-  }
+    # Prevent deleting the current branch
+    if ($currentBranch -eq $BranchName) {
+        Write-Error "Error: You cannot delete the branch you are currently on. Please checkout another branch first (e.g., 'git checkout main')."
+        return
+    }
 
-  Write-Host "Attempting to delete local and remote branch: $BranchName" -ForegroundColor Cyan
+    Write-Host "Attempting to delete local and remote branch: $BranchName" -ForegroundColor Cyan
 
-  # Delete Local Branch
-  $localDeleteResult = git branch -D $BranchName 2>&1
-  if ($LASTEXITCODE -eq 0) {
-    Write-Host "Local branch '$BranchName' deleted successfully." -ForegroundColor Green
-  } else {
-    Write-Error "Failed to delete local branch '$BranchName'. Error: $localDeleteResult. $($Error[0].Exception.Message)."
-    return # Stop if local deletion fails
-  }
+    # Delete Local Branch
+    $localDeleteResult = git branch -D $BranchName 2>&1
+    if ($LASTEXITCODE -eq 0) {
+        Write-Host "Local branch '$BranchName' deleted successfully." -ForegroundColor Green
+    } else {
+        Write-Error "Failed to delete local branch '$BranchName'. Error: $localDeleteResult. $($Error[0].Exception.Message)."
+        return # Stop if local deletion fails
+    }
 
-  # Delete Remote Branch
-  $remoteDeleteResult = git push origin --delete $BranchName 2>&1
-  if ($LASTEXITCODE -eq 0) {
-    Write-Host "Remote branch 'origin/$BranchName' deleted successfully." -ForegroundColor Green
-  } else {
-    Write-Error "Failed to delete remote branch 'origin/$BranchName'. Error: $remoteDeleteResult. $($Error[0].Exception.Message). You might need to delete it manually on GitHub."
-    # Don't return here, proceed to prune even if remote deletion fails
-  }
+    # Delete Remote Branch
+    $remoteDeleteResult = git push origin --delete $BranchName 2>&1
+    if ($LASTEXITCODE -eq 0) {
+        Write-Host "Remote branch 'origin/$BranchName' deleted successfully." -ForegroundColor Green
+    } else {
+        Write-Error "Failed to delete remote branch 'origin/$BranchName'. Error: $remoteDeleteResult. $($Error[0].Exception.Message). You might need to delete it manually on GitHub."
+        # Don't return here, proceed to prune even if remote deletion fails
+    }
 
-  # Prune remote-tracking branches
-  git fetch --prune origin >$null 2>&1 # Suppress output for simplicity
-  Write-Host "Remote-tracking branches pruned." -ForegroundColor DarkGreen
+    # Prune remote-tracking branches
+    git fetch --prune origin >$null 2>&1 # Suppress output for simplicity
+    Write-Host "Remote-tracking branches pruned." -ForegroundColor DarkGreen
 
-  Write-Host "Branch deletion process completed." -ForegroundColor Green
+    Write-Host "Branch deletion process completed." -ForegroundColor Green
 }
 
 # --- Git Aliases ---

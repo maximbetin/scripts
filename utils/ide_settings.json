@@ -1,0 +1,200 @@
+{
+  "[azure-pipelines]": {
+    "editor.quickSuggestions": {
+      "comments": true,
+      "other": true,
+      "strings": true
+    }
+  },
+  "[helm]": {
+    "editor.tabSize": 2
+  },
+  "[html]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "[javascript]": {
+    "editor.defaultFormatter": "vscode.typescript-language-features"
+  },
+  "[json]": {
+    "editor.tabSize": 2,
+    "editor.defaultFormatter": "vscode.json-language-features"
+  },
+  "[jsonc]": {
+    "editor.tabSize": 2,
+    "editor.defaultFormatter": "vscode.json-language-features"
+  },
+  "[markdown]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+    "editor.wordWrap": "on",
+    "editor.wordWrapColumn": 100
+  },
+  "prettier.proseWrap": "always",
+  "editor.wordWrapColumn": 100,
+  "editor.wrappingStrategy": "advanced",
+  "[powershell]": {
+    "editor.defaultFormatter": "ms-vscode.powershell"
+  },
+  "[python]": {
+    "editor.codeActionsOnSave": {
+      "source.fixAll.ruff": "always",
+      "source.organizeImports.ruff": "always"
+    },
+    "editor.defaultFormatter": "charliermarsh.ruff",
+    "editor.formatOnSave": true
+  },
+  "[yaml]": {
+    "editor.tabSize": 2
+  },
+  "azure-pipelines-vscode-ext.enable-semantic-highlighting": true,
+  "bicep.enableSurveys": false,
+  "cursor.cpp.disabledLanguages": [
+    "scminput"
+  ],
+  "cursor.general.globalCursorIgnoreList": [
+    "**/.ssh/id_*",
+    "**/*.cer",
+    "**/*.crt",
+    "**/*.key",
+    "**/*.p12",
+    "**/*.pem",
+    "**/*.pfx",
+    "**/credentials.*.json",
+    "**/credentials.json",
+    "**/id_dsa",
+    "**/id_rsa",
+    "**/secret.json",
+    "**/secrets.json"
+  ],
+  "editor.autoIndent": "full",
+  "editor.bracketPairColorization.enabled": true,
+  "editor.codeActionsOnSave": {
+    "source.fixAll": "always",
+    "source.fixAll.eslint": "always",
+    "source.organizeImports": "always"
+  },
+  "editor.detectIndentation": false,
+  "editor.formatOnPaste": true,
+  "editor.formatOnSave": true,
+  "editor.formatOnType": true,
+  "editor.guides.bracketPairs": "active",
+  "editor.insertSpaces": true,
+  "editor.minimap.enabled": false,
+  "editor.renderWhitespace": "all",
+  "editor.rulers": [
+    100
+  ],
+  "editor.semanticHighlighting.enabled": true,
+  "editor.smoothScrolling": true,
+  "editor.stickyScroll.enabled": true,
+  "editor.tabSize": 4,
+  "editor.wordWrap": "on",
+  "eslint.format.enable": true,
+  "eslint.validate": [
+    "javascript",
+    "javascriptreact",
+    "typescript",
+    "typescriptreact"
+  ],
+  "explorer.confirmDelete": false,
+  "explorer.confirmDragAndDrop": false,
+  "explorer.confirmPasteNative": false,
+  "extensions.allowed": {
+    "*": true
+  },
+  "files.associations": {
+    "*.yml": "yaml",
+    "LICENSE": "plaintext"
+  },
+  "files.autoSave": "afterDelay",
+  "files.autoSaveDelay": 5000,
+  "files.exclude": {
+    "**/.DS_Store": true,
+    "**/.pytest_cache": true,
+    "**/node_modules": true
+  },
+  "files.insertFinalNewline": true,
+  "files.trimFinalNewlines": true,
+  "files.trimTrailingWhitespace": true,
+  "git.autofetch": true,
+  "git.confirmSync": false,
+  "git.enableSmartCommit": true,
+  "git.ignoreRebaseWarning": true,
+  "git.openRepositoryInParentFolders": "always",
+  "git.pruneOnFetch": true,
+  "git.replaceTagsWhenPull": true,
+  "makefile.configureOnOpen": true,
+  "markdownlint.config": {
+    "default": true
+  },
+  "mypy-type-checker.enabled": true,
+  "mypy-type-checker.importStrategy": "fromEnvironment",
+  "mypy-type-checker.preferDaemon": true,
+  "mypy-type-checker.showNotifications": "off",
+  "powershell.codeFolding.enable": true,
+  "powershell.codeFormatting.alignPropertyValuePairs": true,
+  "powershell.codeFormatting.preset": "OTBS",
+  "powershell.integratedConsole.focusConsoleOnExecute": false,
+  "prettier.printWidth": 100,
+  "python.languageServer": "None",
+  "python.testing.autoTestDiscoverOnSaveEnabled": true,
+  "python.testing.pytestArgs": [
+    "-q"
+  ],
+  "python.testing.pytestEnabled": true,
+  "python.testing.unittestEnabled": false,
+  "redhat.telemetry.enabled": false,
+  "ruff.args": [
+    "--line-length=100"
+  ],
+  "ruff.enable": true,
+  "search.exclude": {
+    "**/.DS_Store": true,
+    "**/.pytest_cache": true,
+    "**/node_modules": true
+  },
+  "security.workspace.trust.enabled": true,
+  "security.workspace.trust.untrustedFiles": "open",
+  "terminal.integrated.defaultProfile.windows": "Ubuntu (WSL)",
+  "terminal.integrated.enableMultiLinePasteWarning": "never",
+  "terminal.integrated.profiles.windows": {
+    "Command Prompt": {
+      "args": [],
+      "icon": "terminal-cmd",
+      "path": [
+        "${env:windir}\\Sysnative\\cmd.exe",
+        "${env:windir}\\System32\\cmd.exe"
+      ]
+    },
+    "Git Bash": {
+      "source": "Git Bash"
+    },
+    "PowerShell": {
+      "icon": "terminal-powershell",
+      "source": "PowerShell"
+    },
+    "Ubuntu (WSL)": {
+      "args": [
+        "-d",
+        "Ubuntu"
+      ],
+      "path": "C:\\WINDOWS\\System32\\wsl.exe"
+    }
+  },
+  "vs-kubernetes": {
+    "vscode-kubernetes.helm-path-windows": "C:\\ProgramData\\chocolatey\\bin\\helm.exe",
+    "vscode-kubernetes.kubectl-path-windows": "C:\\ProgramData\\chocolatey\\bin\\kubectl.exe",
+    "vscode-kubernetes.minikube-path-windows": "C:\\ProgramData\\chocolatey\\bin\\minikube.exe"
+  },
+  "workbench.colorTheme": "Default Dark+",
+  "workbench.editor.enablePreview": false,
+  "yaml.format.enable": true,
+  "yaml.schemas": {
+    "kubernetes": [
+      "**/k8s/*.yaml",
+      "**/kubernetes/*.yaml",
+      "**/manifests/*.yaml"
+    ]
+  },
+  "yaml.validate": true,
+  "cursor.composer.usageSummaryDisplay": "always"
+}

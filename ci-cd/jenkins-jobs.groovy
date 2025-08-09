@@ -16,11 +16,11 @@ println "Jobs ran between " + after.getTime() + " - " + before.getTime()
 def regex = ~/(.*)(JOB-NAME)(.*)/
 
 for (job in jenkins.getAllItems(Job.class)) {
-  for(Run run in job.getBuilds()){
-    if (run.getTimestamp()?.before(before) && run.getTimestamp()?.after(after)) {
-      if(job.name ==~ regex) {
-        println "" + run.getResult() + " " + job.name + " " + run.getTime()
-      }
+    for(Run run in job.getBuilds()){
+        if (run.getTimestamp()?.before(before) && run.getTimestamp()?.after(after)) {
+            if(job.name ==~ regex) {
+                println "" + run.getResult() + " " + job.name + " " + run.getTime()
+            }
+        }
     }
-  }
 }
