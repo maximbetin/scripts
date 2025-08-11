@@ -44,25 +44,41 @@ ensure_apt_prereqs() {
   install -d -m 0755 /etc/apt/keyrings
 }
 
+# --- Network check that does not require curl/wget ---
 require_network() {
   # Allow bypass for airgapped installs
   if [[ "${NO_NET_CHECK:-0}" == "1" ]]; then
     echo "[i] Skipping network check (NO_NET_CHECK=1)"
     return 0
   fi
-  # Prefer Ubuntu infra; fall back to a generic fast site
-  if $CURL https://mirrors.ubuntu.com/mirrors.txt >/dev/null 2>&1; then
-    return 0
-  fi
-  if $CURL https://www.google.com/generate_204 >/dev/null 2>&1; then
-    return 0
-  fi
-  echo "[!] Network check failed. Ensure internet connectivity and DNS are working." >&2
+
+  _probe_url() {
+    local url="$1"
+    if command -v curl >/dev/null 2>&1; then
+      curl -fsSL --retry 2 --retry-delay 1 --max-time 5 "$url" >/dev/null 2>&1
+    elif command -v wget >/dev/null 2>&1; then
+      wget -qO- "$url" >/dev/null 2>&1
+    else
+      # TCP fallback: 1.1.1.1:443
+      timeout 5 bash -c '>/dev/tcp/1.1.1.1/443' >/dev/null 2>&1
+    fi
+  }
+
+  _probe_url "https://mirrors.ubuntu.com/mirrors.txt" && return 0
+  _probe_url "https://www.google.com/generate_204" && return 0
+
+  echo "[!] Network check failed or HTTP tools missing. If you know you have internet, set NO_NET_CHECK=1 and continue." >&2
   exit 1
 }
 
+# --- Base apt setup: enable universe/multiverse and ensure curl present ---
 apt_base() {
   apt-get update -y
+  apt-get install -y software-properties-common
+  add-apt-repository -y universe || true
+  add-apt-repository -y multiverse || true
+  apt-get update -y
+
   apt-get -o Dpkg::Use-Pty=0 upgrade -y
   apt-get install -y \
     apt-transport-https ca-certificates curl gnupg lsb-release \
@@ -78,10 +94,95 @@ is_virtualbox() {
   fi
 }
 
+# --- VirtualBox Guest Additions (detect/upgrade) ---
+_ga_modules_loaded() { lsmod | grep -qE 'vboxguest|vboxsf|vboxvideo'; }
+_ga_installed_version() {
+  if command -v VBoxClient >/dev/null 2>&1; then VBoxClient --version 2>/dev/null | awk '{print $1}'; return; fi
+  if command -v VBoxControl >/dev/null 2>&1; then VBoxControl --version 2>/dev/null | awk '{print $1}'; return; fi
+  if command -v modinfo  >/dev/null 2>&1 && modinfo vboxguest >/dev/null 2>&1; then modinfo -F version vboxguest 2>/dev/null; return; fi
+  dpkg-query -W -f='${Version}\n' virtualbox-guest-utils 2>/dev/null | sed 's/-.*//' || true
+}
+_ga_find_mount() {
+  for base in "/media/$USER_NAME" "/media/$USER" "/run/media/$USER_NAME" "/mnt" ; do
+    [[ -d "$base" ]] || continue
+    find "$base" -maxdepth 1 -type d -name 'VBox_GAs_*' 2>/dev/null | head -n1 && return
+  done
+  if [[ -e /dev/cdrom || -e /dev/sr0 ]]; then
+    mkdir -p /mnt/vboxga
+    mount /dev/cdrom /mnt/vboxga 2>/dev/null || mount /dev/sr0 /mnt/vboxga 2>/dev/null || true
+    if [[ -d /mnt/vboxga && -f /mnt/vboxga/VBoxLinuxAdditions.run ]]; then
+      echo /mnt/vboxga && return
+    fi
+  fi
+  echo ""
+}
+_ga_iso_version() {
+  local mnt="$1"
+  basename "$mnt" | sed -n 's/^VBox_GAs_//p'
+}
+_ga_start_clients() {
+  if command -v VBoxClient-all >/dev/null 2>&1; then
+    sudo -u "$USER_NAME" VBoxClient-all >/dev/null 2>&1 || true
+  else
+    sudo -u "$USER_NAME" VBoxClient --clipboard  >/dev/null 2>&1 || true
+    sudo -u "$USER_NAME" VBoxClient --draganddrop >/dev/null 2>&1 || true
+    sudo -u "$USER_NAME" VBoxClient --display    >/dev/null 2>&1 || true
+  fi
+}
+
 install_vbox_guest() {
-  echo "[i] Installing VirtualBox Guest Additions"
+  if ! is_virtualbox; then
+    echo "[i] Not VirtualBox; skipping guest additions"
+    return 0
+  fi
+
+  echo "[i] Checking VirtualBox Guest Additions"
+
+  # Build deps (safe to re-run)
   apt-get install -y "linux-headers-$(uname -r)" || apt-get install -y linux-headers-generic || true
-  apt-get install -y virtualbox-guest-dkms virtualbox-guest-utils virtualbox-guest-x11 || true
+  apt-get install -y build-essential dkms || true
+  # Minimal X bits some GA builds expect
+  apt-get install -y xserver-xorg-core || true
+
+  local INST_VER ISO_MOUNT ISO_VER
+  INST_VER="$(_ga_installed_version | tr -d '\r\n' || true)"
+  ISO_MOUNT="$(_ga_find_mount)"
+  [[ -n "$ISO_MOUNT" ]] && ISO_VER="$(_ga_iso_version "$ISO_MOUNT" | tr -d '\r\n')"
+
+  echo "[i] Installed GA version: ${INST_VER:-none}"
+  [[ -n "$ISO_MOUNT" ]] && echo "[i] ISO detected: $ISO_MOUNT (version ${ISO_VER:-unknown})" || echo "[i] GA ISO not detected."
+
+  # Prefer ISO when present and mismatch or modules not loaded
+  if [[ -n "$ISO_MOUNT" && -f "$ISO_MOUNT/VBoxLinuxAdditions.run" ]]; then
+    if [[ "$INST_VER" != "$ISO_VER" || ! $(_ga_modules_loaded) ]]; then
+      echo "[i] Installing GA from ISO (will match host)"
+      chmod +x "$ISO_MOUNT/VBoxLinuxAdditions.run"
+      if "$ISO_MOUNT/VBoxLinuxAdditions.run" --nox11 || "$ISO_MOUNT/VBoxLinuxAdditions.run"; then
+        echo "[i] Guest Additions installed from ISO."
+        _ga_start_clients
+        echo "[i] A reboot is recommended to load new kernel modules."
+        return 0
+      else
+        echo "[!] ISO installer failed; falling back to Ubuntu packages."
+      fi
+    else
+      echo "[=] GA already matches ISO and modules appear loaded."
+      _ga_start_clients
+      return 0
+    fi
+  fi
+
+  # Repo fallback (may not match host precisely). Non-fatal if some packages missing.
+  echo "[i] Installing GA from Ubuntu packages (may not exactly match host)"
+  apt-get install -y virtualbox-guest-dkms virtualbox-guest-utils virtualbox-guest-x11 || \
+  apt-get install -y virtualbox-guest-utils virtualbox-guest-x11 || true
+
+  if _ga_modules_loaded; then
+    echo "[i] VBox modules loaded."
+  else
+    echo "[i] Modules may load after reboot."
+  fi
+  _ga_start_clients
 }
 
 # ----- Brave Browser -----
@@ -179,7 +280,7 @@ install_kubernetes_tooling() {
     install -m 0755 kubectl /usr/local/bin/kubectl
     popd >/dev/null; rm -rf "$tmp"
   else
-    echo "[=] kubectl present"
+    echo "[=] kubectl present]"
   fi
   if ! command -v helm >/dev/null 2>&1; then
     echo "[i] Installing Helm"
