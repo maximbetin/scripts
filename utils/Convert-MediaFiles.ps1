@@ -34,7 +34,7 @@ param(
 
     # New features
     [Parameter(HelpMessage = "Quality preset: Default keeps your flags; Low smaller; Medium balanced; High larger/better.")]
-    [ValidateSet("Default","Low","Medium","High")]
+    [ValidateSet("Default", "Low", "Medium", "High")]
     [string]$QualityPreset = "Default",
 
     [Parameter(HelpMessage = "Optional upscale target width for images/videos (keeps aspect). 0 = none.")]
@@ -61,16 +61,16 @@ $videoExtensions = "*.3gp", "*.mkv", "*.mp4", "*.avi", "*.webm"
 function Write-Log {
     param(
         [Parameter(Mandatory)][string]$Message,
-        [ValidateSet("INFO","WARNING","ERROR","DEBUG")][string]$Level = "INFO"
+        [ValidateSet("INFO", "WARNING", "ERROR", "DEBUG")][string]$Level = "INFO"
     )
     $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
     $logEntry = "[$timestamp][$Level] $Message"
     $script:LogBuffer.Add($logEntry) | Out-Null
     switch ($Level) {
-        "ERROR"   { Write-Error $Message }
+        "ERROR" { Write-Error $Message }
         "WARNING" { Write-Warning $Message }
-        "INFO"    { Write-Host $Message }
-        "DEBUG"   { Write-Verbose $Message }
+        "INFO" { Write-Host $Message }
+        "DEBUG" { Write-Verbose $Message }
     }
     if ($script:LogFileStream) {
         try { $script:LogFileStream.WriteLine($logEntry) } catch {
@@ -134,7 +134,7 @@ function Read-OriginalFile {
         [Parameter(Mandatory)][string]$SourceBaseDir
     )
     if ($MoveOriginals) {
-        $relativeDir = (Get-Item $OriginalFilePath).Directory.FullName.Substring($SourceBaseDir.Length).TrimStart("\","/")
+        $relativeDir = (Get-Item $OriginalFilePath).Directory.FullName.Substring($SourceBaseDir.Length).TrimStart("\", "/")
         $archiveRoot = Join-Path (Split-Path $SourceBaseDir) "Processed_Originals"
         $archiveDir = Join-Path $archiveRoot $relativeDir
         $archivePath = Join-Path $archiveDir (Split-Path $OriginalFilePath -Leaf)
@@ -159,17 +159,17 @@ function Confirm-Actions {
         $actionType = switch ($action.Type) {
             "ImageConversion" { "Convert Image" }
             "VideoConversion" { "Convert Video" }
-            "ImageRename"     { "Rename Image" }
-            "VideoRename"     { "Rename Video" }
-            default           { "Unknown Action" }
+            "ImageRename" { "Rename Image" }
+            "VideoRename" { "Rename Video" }
+            default { "Unknown Action" }
         }
         $displayOriginalPath = $action.OriginalPath
         $displayNewPath = $action.NewPath
-        if ($displayOriginalPath.StartsWith($currentLocation,[System.StringComparison]::OrdinalIgnoreCase)) { $displayOriginalPath = "." + $displayOriginalPath.Substring($currentLocation.Length) }
-        if ($displayNewPath.StartsWith($currentLocation,[System.StringComparison]::OrdinalIgnoreCase)) { $displayNewPath = "." + $displayNewPath.Substring($currentLocation.Length) }
-        $displayOriginalPath = $displayOriginalPath.TrimStart("\","/")
-        $displayNewPath      = $displayNewPath.TrimStart("\","/")
-        Write-Host "  $i. $actionType: $displayOriginalPath -> $displayNewPath"
+        if ($displayOriginalPath.StartsWith($currentLocation, [System.StringComparison]::OrdinalIgnoreCase)) { $displayOriginalPath = "." + $displayOriginalPath.Substring($currentLocation.Length) }
+        if ($displayNewPath.StartsWith($currentLocation, [System.StringComparison]::OrdinalIgnoreCase)) { $displayNewPath = "." + $displayNewPath.Substring($currentLocation.Length) }
+        $displayOriginalPath = $displayOriginalPath.TrimStart("\", "/")
+        $displayNewPath = $displayNewPath.TrimStart("\", "/")
+        Write-Host "  $i. ${actionType}: $displayOriginalPath -> $displayNewPath"
         $i++
     }
     if ($Force.IsPresent) { return $true }
@@ -180,11 +180,11 @@ function Confirm-Actions {
 
 # --- New: ffprobe/HDR helpers ---
 function Get-VideoStreamInfo {
-    param([Parameter(Mandatory)][string]$FFMpegExePath,[Parameter(Mandatory)][string]$InputPath)
+    param([Parameter(Mandatory)][string]$FFMpegExePath, [Parameter(Mandatory)][string]$InputPath)
     $ffprobe = ($FFMpegExePath -replace 'ffmpeg(\.exe)?$', 'ffprobe$1')
     if (-not (Get-Command $ffprobe -ErrorAction SilentlyContinue)) { $ffprobe = "ffprobe.exe" }
-    $args = @("-v","error","-select_streams","v:0","-show_entries","stream=codec_name,pix_fmt,color_space,color_transfer,color_primaries","-of","json","`"$InputPath`"")
-    try { $json = & $ffprobe @args 2>$null; if (-not $json) { return $null }; ($json | ConvertFrom-Json).streams[0] } catch { return $null }
+    $ffprobeArgs = @("-v", "error", "-select_streams", "v:0", "-show_entries", "stream=codec_name,pix_fmt,color_space,color_transfer,color_primaries", "-of", "json", "`"$InputPath`"")
+    try { $json = & $ffprobe $ffprobeArgs 2>$null; if (-not $json) { return $null }; ($json | ConvertFrom-Json).streams[0] } catch { return $null }
 }
 function Test-IsHDR {
     param([object]$s)
@@ -198,7 +198,7 @@ function Test-IsHDR {
 # --- New: Quality resolver ---
 function Get-EffectiveQuality {
     param(
-        [string]$QualityPreset,[int]$VideoCRF,[string]$VideoPreset,[string]$AudioBitrate,[int]$ImageQuality
+        [string]$QualityPreset, [int]$VideoCRF, [string]$VideoPreset, [string]$AudioBitrate, [int]$ImageQuality
     )
     $eff = [ordered]@{
         VideoCRF     = $VideoCRF
@@ -207,10 +207,10 @@ function Get-EffectiveQuality {
         ImageQuality = $ImageQuality
     }
     switch ($QualityPreset) {
-        "Low"    { $eff.VideoCRF=28; $eff.VideoPreset="fast";   $eff.AudioBitrate="128k"; $eff.ImageQuality=8 }
-        "Medium" { $eff.VideoCRF=18; $eff.VideoPreset="medium"; $eff.AudioBitrate="192k"; $eff.ImageQuality=[Math]::Min($ImageQuality,2) }
-        "High"   { $eff.VideoCRF=14; $eff.VideoPreset="slow";   $eff.AudioBitrate="256k"; $eff.ImageQuality=1 }
-        default  { }
+        "Low" { $eff.VideoCRF = 28; $eff.VideoPreset = "fast"; $eff.AudioBitrate = "128k"; $eff.ImageQuality = 8 }
+        "Medium" { $eff.VideoCRF = 18; $eff.VideoPreset = "medium"; $eff.AudioBitrate = "192k"; $eff.ImageQuality = [Math]::Min($ImageQuality, 2) }
+        "High" { $eff.VideoCRF = 14; $eff.VideoPreset = "slow"; $eff.AudioBitrate = "256k"; $eff.ImageQuality = 1 }
+        default { }
     }
     return $eff
 }
@@ -264,7 +264,7 @@ foreach ($file in $allSourceFiles) {
     Write-Log "  Examining: $($file.FullName)" "DEBUG"
     $ext = $file.Extension.ToLower()
     $targetOutputDirectory = if ($AbsoluteDestinationRoot) {
-        $relativePath = $file.Directory.FullName.Substring($SourcePath.Length).TrimStart("\","/")
+        $relativePath = $file.Directory.FullName.Substring($SourcePath.Length).TrimStart("\", "/")
         $dir = Join-Path $AbsoluteDestinationRoot $relativePath
         New-Item -ItemType Directory -Path $dir -ErrorAction SilentlyContinue | Out-Null
         $dir
@@ -274,27 +274,26 @@ foreach ($file in $allSourceFiles) {
         $newPath = Get-UniqueTimestampFileName -OriginalFile $file -TargetExtension ".jpg" -Prefix "IMG" -OutputDirectory $targetOutputDirectory
         $pathsSame = ($file.FullName.ToLower() -eq $newPath.ToLower())
         if ($ext -eq ".jpg" -and $pathsSame) {
-            $pendingActions += @{ Type="Skipped"; OriginalPath=$file.FullName; NewPath=$newPath; ActionType="Image" }
+            $pendingActions += @{ Type = "Skipped"; OriginalPath = $file.FullName; NewPath = $newPath; ActionType = "Image" }
             Write-Log "    Skipped (already JPG and correctly named)." "DEBUG"
         } elseif ($ext -eq ".jpg") {
-            $pendingActions += @{ Type="ImageRename"; OriginalPath=$file.FullName; NewPath=$newPath; ActionType="Image" }
+            $pendingActions += @{ Type = "ImageRename"; OriginalPath = $file.FullName; NewPath = $newPath; ActionType = "Image" }
             Write-Log "    Plan: Rename Image." "DEBUG"
         } elseif (-not $RenameOnly) {
-            $pendingActions += @{ Type="ImageConversion"; OriginalPath=$file.FullName; NewPath=$newPath; ActionType="Image" }
+            $pendingActions += @{ Type = "ImageConversion"; OriginalPath = $file.FullName; NewPath = $newPath; ActionType = "Image" }
             Write-Log "    Plan: Convert Image to JPG." "DEBUG"
         } else { Write-Log "    Skipped (RenameOnly set but conversion needed)." "DEBUG" }
-    }
-    elseif ($videoExtensions -contains "*$ext") {
+    } elseif ($videoExtensions -contains "*$ext") {
         $newPath = Get-UniqueTimestampFileName -OriginalFile $file -TargetExtension ".mp4" -Prefix "VID" -OutputDirectory $targetOutputDirectory
         $pathsSame = ($file.FullName.ToLower() -eq $newPath.ToLower())
         if ($ext -eq ".mp4" -and $pathsSame) {
-            $pendingActions += @{ Type="Skipped"; OriginalPath=$file.FullName; NewPath=$newPath; ActionType="Video" }
+            $pendingActions += @{ Type = "Skipped"; OriginalPath = $file.FullName; NewPath = $newPath; ActionType = "Video" }
             Write-Log "    Skipped (already MP4 and correctly named)." "DEBUG"
         } elseif ($ext -eq ".mp4") {
-            $pendingActions += @{ Type="VideoRename"; OriginalPath=$file.FullName; NewPath=$newPath; ActionType="Video" }
+            $pendingActions += @{ Type = "VideoRename"; OriginalPath = $file.FullName; NewPath = $newPath; ActionType = "Video" }
             Write-Log "    Plan: Rename Video." "DEBUG"
         } elseif (-not $RenameOnly) {
-            $pendingActions += @{ Type="VideoConversion"; OriginalPath=$file.FullName; NewPath=$newPath; ActionType="Video" }
+            $pendingActions += @{ Type = "VideoConversion"; OriginalPath = $file.FullName; NewPath = $newPath; ActionType = "Video" }
             Write-Log "    Plan: Convert Video to MP4." "DEBUG"
         } else { Write-Log "    Skipped (RenameOnly set but conversion needed)." "DEBUG" }
     } else { Write-Log "    Skipping unknown type." "DEBUG" }
@@ -303,7 +302,7 @@ foreach ($file in $allSourceFiles) {
 $actualPending = $pendingActions | Where-Object { $_.Type -ne "Skipped" }
 
 # Confirm & Execute
-if ($PSCmdlet.ShouldProcess("process media files recursively in '$SourcePath'","Perform Conversion/Rename")) {
+if ($PSCmdlet.ShouldProcess("process media files recursively in '$SourcePath'", "Perform Conversion/Rename")) {
     if ($actualPending.Count -eq 0) { Write-Log "`nNo actionable items. Exiting." "INFO"; return }
     if (-not (Confirm-Actions -PendingActions $actualPending)) { Write-Log "`nCancelled by user." "INFO"; return }
 
@@ -313,7 +312,7 @@ if ($PSCmdlet.ShouldProcess("process media files recursively in '$SourcePath'","
 
     foreach ($action in $pendingActions) {
         $i++
-        Write-Progress -Activity "Processing Media Files" -Status "($i/$total) $($action.OriginalPath | Split-Path -Leaf)" -PercentComplete ($i/$total*100) -Id 1
+        Write-Progress -Activity "Processing Media Files" -Status "($i/$total) $($action.OriginalPath | Split-Path -Leaf)" -PercentComplete ($i / $total * 100) -Id 1
         Write-Log "`n--- Processing File: $($action.OriginalPath | Split-Path -Leaf) ---" "INFO"
         Write-Log "  Planned Action: $($action.Type)" "INFO"
         Write-Log "  Original Path: $($action.OriginalPath)" "INFO"
@@ -344,7 +343,7 @@ if ($PSCmdlet.ShouldProcess("process media files recursively in '$SourcePath'","
                 $imgFilters = @()
                 if ($UpscaleWidth -gt 0) { $imgFilters += "scale=w=$UpscaleWidth:h=-2:flags=lanczos" }
                 if ($Sharpen) { $imgFilters += "unsharp=5:5:0.8:5:5:0.0" }
-                $vfArgs = @(); if ($imgFilters.Count -gt 0) { $vfArgs = @("-vf","`"$($imgFilters -join ',')`"") }
+                $vfArgs = @(); if ($imgFilters.Count -gt 0) { $vfArgs = @("-vf", "`"$($imgFilters -join ',')`"") }
 
                 $ffmpegArgs = @("-i", "`"$($action.OriginalPath)`"") + $vfArgs + @(
                     "-q:v", "$($Q.ImageQuality)",
@@ -354,65 +353,61 @@ if ($PSCmdlet.ShouldProcess("process media files recursively in '$SourcePath'","
                 $conversionSuccessful = $res.Success
                 if ($conversionSuccessful) { Write-Log "  Image conversion completed." "INFO"; $convertedCount++ }
                 else { Write-Log "ERROR: Image conversion failed. Exit $($res.ExitCode)" "ERROR"; Write-Log "FFmpeg Output: $($res.FFMpegOutput)" "ERROR"; $errorCount++ }
-            }
-            elseif ($action.ActionType -eq "Video" -and ($action.Type -eq "VideoConversion")) {
+            } elseif ($action.ActionType -eq "Video" -and ($action.Type -eq "VideoConversion")) {
                 $vinfo = Get-VideoStreamInfo -FFMpegExePath $FFmpegPath -InputPath $action.OriginalPath
                 $isHDR = Test-IsHDR -s $vinfo
 
                 # Optional re-mux if keeping HDR and input is already MP4 HEVC
                 $extIn = [IO.Path]::GetExtension($action.OriginalPath).ToLowerInvariant()
                 if ($extIn -eq ".mp4" -and $isHDR -and $KeepHDR) {
-                    $ffmpegArgs = @("-i","`"$($action.OriginalPath)`"","-c","copy","-y","`"$($action.NewPath)`"")
-                }
-                elseif ($isHDR -and $KeepHDR) {
+                    $ffmpegArgs = @("-i", "`"$($action.OriginalPath)`"", "-c", "copy", "-y", "`"$($action.NewPath)`"")
+                } elseif ($isHDR -and $KeepHDR) {
                     # Keep HDR: HEVC 10-bit
                     $extra = @()
                     if ($UpscaleWidth -gt 0) { $extra += "scale=w=$UpscaleWidth:h=-2:flags=lanczos" }
                     if ($Sharpen) { $extra += "unsharp=5:5:0.8:5:5:0.0" }
-                    $ffmpegArgs = @("-i","`"$($action.OriginalPath)`"")
-                    if ($extra.Count -gt 0) { $ffmpegArgs += @("-vf","`"$($extra -join ',')`"") }
+                    $ffmpegArgs = @("-i", "`"$($action.OriginalPath)`"")
+                    if ($extra.Count -gt 0) { $ffmpegArgs += @("-vf", "`"$($extra -join ',')`"") }
                     $ffmpegArgs += @(
-                        "-c:v","libx265",
-                        "-pix_fmt","yuv420p10le",
-                        "-tag:v","hvc1",
-                        "-crf","$($Q.VideoCRF)",
-                        "-preset","$($Q.VideoPreset)",
-                        "-c:a","copy",
-                        "-y","`"$($action.NewPath)`""
+                        "-c:v", "libx265",
+                        "-pix_fmt", "yuv420p10le",
+                        "-tag:v", "hvc1",
+                        "-crf", "$($Q.VideoCRF)",
+                        "-preset", "$($Q.VideoPreset)",
+                        "-c:a", "copy",
+                        "-y", "`"$($action.NewPath)`""
                     )
-                }
-                elseif ($isHDR) {
+                } elseif ($isHDR) {
                     # HDR -> SDR BT.709 for x264
                     $vf = "zscale=transferin=arib-std-b67:primariesin=bt2020:matrixin=bt2020nc," +
                     "zscale=transfer=linear,tonemap=hable," +
                     "zscale=transfer=bt709:primaries=bt709:matrix=bt709,format=yuv420p"
-                    if ($vinfo.color_transfer -match 'smpte2084|pq') { $vf = $vf -replace 'arib-std-b67','smpte2084' }
+                    if ($vinfo.color_transfer -match 'smpte2084|pq') { $vf = $vf -replace 'arib-std-b67', 'smpte2084' }
                     $extras = @()
                     if ($UpscaleWidth -gt 0) { $extras += "scale=w=$UpscaleWidth:h=-2:flags=lanczos" }
                     if ($Sharpen) { $extras += "unsharp=5:5:0.8:5:5:0.0" }
                     if ($extras.Count -gt 0) { $vf = "$vf," + ($extras -join ',') }
 
                     $ffmpegArgs = @(
-                        "-i","`"$($action.OriginalPath)`"",
-                        "-vf","`"$vf`"",
-                        "-c:v","libx264","-crf","$($Q.VideoCRF)","-preset","$($Q.VideoPreset)",
-                        "-pix_fmt","yuv420p",
-                        "-colorspace","bt709","-color_primaries","bt709","-color_trc","bt709",
-                        "-c:a","aac","-b:a","$($Q.AudioBitrate)",
-                        "-y","`"$($action.NewPath)`""
+                        "-i", "`"$($action.OriginalPath)`"",
+                        "-vf", "`"$vf`"",
+                        "-c:v", "libx264", "-crf", "$($Q.VideoCRF)", "-preset", "$($Q.VideoPreset)",
+                        "-pix_fmt", "yuv420p",
+                        "-colorspace", "bt709", "-color_primaries", "bt709", "-color_trc", "bt709",
+                        "-c:a", "aac", "-b:a", "$($Q.AudioBitrate)",
+                        "-y", "`"$($action.NewPath)`""
                     )
-                }
-                else {
+                } else {
                     # SDR -> plain H.264
                     $extra = @()
                     if ($UpscaleWidth -gt 0) { $extra += "scale=w=$UpscaleWidth:h=-2:flags=lanczos" }
                     if ($Sharpen) { $extra += "unsharp=5:5:0.8:5:5:0.0" }
-                    $ffmpegArgs = @("-i","`"$($action.OriginalPath)`"")
-                    if ($extra.Count -gt 0) { $ffmpegArgs += @("-vf","`"$($extra -join ',')`"") }
+                    $ffmpegArgs = @("-i", "`"$($action.OriginalPath)`"")
+                    if ($extra.Count -gt 0) { $ffmpegArgs += @("-vf", "`"$($extra -join ',')`"") }
                     $ffmpegArgs += @(
-                        "-c:v","libx264","-crf","$($Q.VideoCRF)","-preset","$($Q.VideoPreset)",
-                        "-c:a","aac","-b:a","$($Q.AudioBitrate)",
-                        "-y","`"$($action.NewPath)`""
+                        "-c:v", "libx264", "-crf", "$($Q.VideoCRF)", "-preset", "$($Q.VideoPreset)",
+                        "-c:a", "aac", "-b:a", "$($Q.AudioBitrate)",
+                        "-y", "`"$($action.NewPath)`""
                     )
                 }
 
@@ -447,6 +442,6 @@ Write-Log "------------------------------" "INFO"
 Write-Log "Finished at $(Get-Date)." "INFO"
 
 if ($script:LogFileStream) {
-    try { $script:LogFileStream.Close(); $script:LogFileStream.Dispose(); $script:LogFileStream=$null; Write-Host "Log saved to '$LogFile'." -ForegroundColor Green }
+    try { $script:LogFileStream.Close(); $script:LogFileStream.Dispose(); $script:LogFileStream = $null; Write-Host "Log saved to '$LogFile'." -ForegroundColor Green }
     catch { Write-Host "WARNING: Error closing log file: $($_.Exception.Message)" -ForegroundColor Yellow }
 }
