@@ -13,24 +13,22 @@
     "editor.defaultFormatter": "esbenp.prettier-vscode"
   },
   "[javascript]": {
-    "editor.defaultFormatter": "vscode.typescript-language-features"
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
   },
   "[json]": {
-    "editor.tabSize": 2,
-    "editor.defaultFormatter": "vscode.json-language-features"
+    "editor.defaultFormatter": "vscode.json-language-features",
+    "editor.tabSize": 2
   },
   "[jsonc]": {
-    "editor.tabSize": 2,
-    "editor.defaultFormatter": "vscode.json-language-features"
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+    "editor.tabSize": 2
   },
   "[markdown]": {
-    "editor.defaultFormatter": "esbenp.prettier-vscode",
-    "editor.wordWrap": "on",
-    "editor.wordWrapColumn": 100
+    "editor.defaultFormatter": "DavidAnson.vscode-markdownlint",
+    "editor.tabSize": 2,
+    "editor.wordWrap": "bounded",
+    "editor.wordWrapColumn": 200
   },
-  "prettier.proseWrap": "always",
-  "editor.wordWrapColumn": 100,
-  "editor.wrappingStrategy": "advanced",
   "[powershell]": {
     "editor.defaultFormatter": "ms-vscode.powershell"
   },
@@ -39,14 +37,19 @@
       "source.fixAll.ruff": "always",
       "source.organizeImports.ruff": "always"
     },
-    "editor.defaultFormatter": "charliermarsh.ruff",
-    "editor.formatOnSave": true
+    "editor.defaultFormatter": "charliermarsh.ruff"
+  },
+  "[typescript]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
   },
   "[yaml]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
     "editor.tabSize": 2
   },
   "azure-pipelines-vscode-ext.enable-semantic-highlighting": true,
   "bicep.enableSurveys": false,
+  "cursor.composer.shouldChimeAfterChatFinishes": true,
+  "cursor.composer.usageSummaryDisplay": "always",
   "cursor.cpp.disabledLanguages": [
     "scminput"
   ],
@@ -65,6 +68,7 @@
     "**/secret.json",
     "**/secrets.json"
   ],
+  "diffEditor.maxComputationTime": 0,
   "editor.autoIndent": "full",
   "editor.bracketPairColorization.enabled": true,
   "editor.codeActionsOnSave": {
@@ -81,14 +85,16 @@
   "editor.minimap.enabled": false,
   "editor.renderWhitespace": "all",
   "editor.rulers": [
-    100
+    200
   ],
   "editor.semanticHighlighting.enabled": true,
   "editor.smoothScrolling": true,
   "editor.stickyScroll.enabled": true,
   "editor.tabSize": 4,
-  "editor.wordWrap": "on",
-  "eslint.format.enable": true,
+  "editor.wordWrap": "bounded",
+  "editor.wordWrapColumn": 100,
+  "editor.wrappingStrategy": "advanced",
+  "eslint.format.enable": false,
   "eslint.validate": [
     "javascript",
     "javascriptreact",
@@ -107,14 +113,6 @@
   },
   "files.autoSave": "afterDelay",
   "files.autoSaveDelay": 5000,
-  "files.exclude": {
-    "**/.DS_Store": true,
-    "**/.pytest_cache": true,
-    "**/node_modules": true
-  },
-  "files.insertFinalNewline": true,
-  "files.trimFinalNewlines": true,
-  "files.trimTrailingWhitespace": true,
   "git.autofetch": true,
   "git.confirmSync": false,
   "git.enableSmartCommit": true,
@@ -124,18 +122,25 @@
   "git.replaceTagsWhenPull": true,
   "makefile.configureOnOpen": true,
   "markdownlint.config": {
-    "default": true
+    "default": true,
+    "MD029": false,
+    "MD036": false,
+    "ignore": [
+      "CHANGELOG.md"
+    ]
   },
-  "mypy-type-checker.enabled": true,
-  "mypy-type-checker.importStrategy": "fromEnvironment",
+  "mypy-type-checker.importStrategy": "useBundled",
   "mypy-type-checker.preferDaemon": true,
-  "mypy-type-checker.showNotifications": "off",
   "powershell.codeFolding.enable": true,
   "powershell.codeFormatting.alignPropertyValuePairs": true,
   "powershell.codeFormatting.preset": "OTBS",
   "powershell.integratedConsole.focusConsoleOnExecute": false,
+  "powershell.powerShellAdditionalExePaths": {},
   "prettier.printWidth": 100,
+  "prettier.proseWrap": "always",
+  "python.createEnvironment.trigger": "off",
   "python.languageServer": "None",
+  "python.terminal.activateEnvironment": false,
   "python.testing.autoTestDiscoverOnSaveEnabled": true,
   "python.testing.pytestArgs": [
     "-q"
@@ -153,48 +158,29 @@
     "**/node_modules": true
   },
   "security.workspace.trust.enabled": true,
-  "security.workspace.trust.untrustedFiles": "open",
-  "terminal.integrated.defaultProfile.windows": "Ubuntu (WSL)",
-  "terminal.integrated.enableMultiLinePasteWarning": "never",
+  "security.workspace.trust.untrustedFiles": "newWindow",
+  "terminal.integrated.defaultProfile.linux": "zsh",
+  "terminal.integrated.defaultProfile.windows": "PowerShell",
+  "terminal.integrated.enableMultiLinePasteWarning": "prompt",
   "terminal.integrated.profiles.windows": {
-    "Command Prompt": {
-      "args": [],
-      "icon": "terminal-cmd",
-      "path": [
-        "${env:windir}\\Sysnative\\cmd.exe",
-        "${env:windir}\\System32\\cmd.exe"
-      ]
-    },
-    "Git Bash": {
-      "source": "Git Bash"
-    },
     "PowerShell": {
-      "icon": "terminal-powershell",
-      "source": "PowerShell"
+      "source": "PowerShell",
+      "icon": "terminal-powershell"
     },
     "Ubuntu (WSL)": {
+      "path": "C:\\WINDOWS\\System32\\wsl.exe",
       "args": [
         "-d",
         "Ubuntu"
-      ],
-      "path": "C:\\WINDOWS\\System32\\wsl.exe"
+      ]
     }
   },
-  "vs-kubernetes": {
-    "vscode-kubernetes.helm-path-windows": "C:\\ProgramData\\chocolatey\\bin\\helm.exe",
-    "vscode-kubernetes.kubectl-path-windows": "C:\\ProgramData\\chocolatey\\bin\\kubectl.exe",
-    "vscode-kubernetes.minikube-path-windows": "C:\\ProgramData\\chocolatey\\bin\\minikube.exe"
-  },
+  "terminal.integrated.shellIntegration.enabled": true,
+  "window.commandCenter": true,
   "workbench.colorTheme": "Default Dark+",
   "workbench.editor.enablePreview": false,
-  "yaml.format.enable": true,
-  "yaml.schemas": {
-    "kubernetes": [
-      "**/k8s/*.yaml",
-      "**/kubernetes/*.yaml",
-      "**/manifests/*.yaml"
-    ]
-  },
-  "yaml.validate": true,
-  "cursor.composer.usageSummaryDisplay": "always"
+  "workbench.layoutControl.enabled": false,
+  "workbench.navigationControl.enabled": false,
+  "yaml.format.enable": false,
+  "yaml.validate": true
 }
