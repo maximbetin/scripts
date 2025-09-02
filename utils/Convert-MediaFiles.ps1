@@ -29,6 +29,9 @@ param(
     [Parameter(HelpMessage = "Only rename files (no conversion).")]
     [switch]$RenameOnly,
 
+    [Parameter(HelpMessage = "Enable renaming of files to timestamp format (disabled by default).")]
+    [switch]$EnableRename,
+
     [Parameter(HelpMessage = "Log file path.")]
     [string]$LogFile,
 
@@ -56,6 +59,7 @@ $script:LogFileStream = $null
 
 $imageExtensions = "*.jpg", "*.jpeg", "*.png", "*.webp", "*.heic", "*.heif"
 $videoExtensions = "*.3gp", "*.mkv", "*.mp4", "*.avi", "*.webm"
+$audioExtensions = "*.m4a", "*.wav", "*.flac", "*.aac", "*.ogg", "*.wma", "*.mp3"
 
 # --- Helpers ---
 function Write-Log {
@@ -159,8 +163,10 @@ function Confirm-Actions {
         $actionType = switch ($action.Type) {
             "ImageConversion" { "Convert Image" }
             "VideoConversion" { "Convert Video" }
+            "AudioConversion" { "Convert Audio" }
             "ImageRename" { "Rename Image" }
             "VideoRename" { "Rename Video" }
+            "AudioRename" { "Rename Audio" }
             default { "Unknown Action" }
         }
         $displayOriginalPath = $action.OriginalPath
@@ -258,7 +264,7 @@ $Q = Get-EffectiveQuality -QualityPreset $QualityPreset -VideoCRF $VideoCRF -Vid
 Write-Log "`n--- Discovering Files ---" "INFO"
 Write-Log "Scanning '$SourcePath' recursively..." "INFO"
 $pendingActions = @()
-$allSourceFiles = Get-ChildItem -Path (Join-Path $SourcePath "*") -File -Include ($imageExtensions + $videoExtensions) -Recurse -ErrorAction SilentlyContinue
+$allSourceFiles = Get-ChildItem -Path (Join-Path $SourcePath "*") -File -Include ($imageExtensions + $videoExtensions + $audioExtensions) -Recurse -ErrorAction SilentlyContinue
 
 foreach ($file in $allSourceFiles) {
     Write-Log "  Examining: $($file.FullName)" "DEBUG"
@@ -276,9 +282,12 @@ foreach ($file in $allSourceFiles) {
         if ($ext -eq ".jpg" -and $pathsSame) {
             $pendingActions += @{ Type = "Skipped"; OriginalPath = $file.FullName; NewPath = $newPath; ActionType = "Image" }
             Write-Log "    Skipped (already JPG and correctly named)." "DEBUG"
-        } elseif ($ext -eq ".jpg") {
+        } elseif ($ext -eq ".jpg" -and $EnableRename) {
             $pendingActions += @{ Type = "ImageRename"; OriginalPath = $file.FullName; NewPath = $newPath; ActionType = "Image" }
             Write-Log "    Plan: Rename Image." "DEBUG"
+        } elseif ($ext -eq ".jpg" -and -not $EnableRename) {
+            $pendingActions += @{ Type = "Skipped"; OriginalPath = $file.FullName; NewPath = $file.FullName; ActionType = "Image" }
+            Write-Log "    Skipped (JPG but renaming disabled)." "DEBUG"
         } elseif (-not $RenameOnly) {
             $pendingActions += @{ Type = "ImageConversion"; OriginalPath = $file.FullName; NewPath = $newPath; ActionType = "Image" }
             Write-Log "    Plan: Convert Image to JPG." "DEBUG"
@@ -289,12 +298,31 @@ foreach ($file in $allSourceFiles) {
         if ($ext -eq ".mp4" -and $pathsSame) {
             $pendingActions += @{ Type = "Skipped"; OriginalPath = $file.FullName; NewPath = $newPath; ActionType = "Video" }
             Write-Log "    Skipped (already MP4 and correctly named)." "DEBUG"
-        } elseif ($ext -eq ".mp4") {
+        } elseif ($ext -eq ".mp4" -and $EnableRename) {
             $pendingActions += @{ Type = "VideoRename"; OriginalPath = $file.FullName; NewPath = $newPath; ActionType = "Video" }
             Write-Log "    Plan: Rename Video." "DEBUG"
+        } elseif ($ext -eq ".mp4" -and -not $EnableRename) {
+            $pendingActions += @{ Type = "Skipped"; OriginalPath = $file.FullName; NewPath = $file.FullName; ActionType = "Video" }
+            Write-Log "    Skipped (MP4 but renaming disabled)." "DEBUG"
         } elseif (-not $RenameOnly) {
             $pendingActions += @{ Type = "VideoConversion"; OriginalPath = $file.FullName; NewPath = $newPath; ActionType = "Video" }
             Write-Log "    Plan: Convert Video to MP4." "DEBUG"
+        } else { Write-Log "    Skipped (RenameOnly set but conversion needed)." "DEBUG" }
+    } elseif ($audioExtensions -contains "*$ext") {
+        $newPath = Get-UniqueTimestampFileName -OriginalFile $file -TargetExtension ".mp3" -Prefix "AUD" -OutputDirectory $targetOutputDirectory
+        $pathsSame = ($file.FullName.ToLower() -eq $newPath.ToLower())
+        if ($ext -eq ".mp3" -and $pathsSame) {
+            $pendingActions += @{ Type = "Skipped"; OriginalPath = $file.FullName; NewPath = $newPath; ActionType = "Audio" }
+            Write-Log "    Skipped (already MP3 and correctly named)." "DEBUG"
+        } elseif ($ext -eq ".mp3" -and $EnableRename) {
+            $pendingActions += @{ Type = "AudioRename"; OriginalPath = $file.FullName; NewPath = $newPath; ActionType = "Audio" }
+            Write-Log "    Plan: Rename Audio." "DEBUG"
+        } elseif ($ext -eq ".mp3" -and -not $EnableRename) {
+            $pendingActions += @{ Type = "Skipped"; OriginalPath = $file.FullName; NewPath = $file.FullName; ActionType = "Audio" }
+            Write-Log "    Skipped (MP3 but renaming disabled)." "DEBUG"
+        } elseif (-not $RenameOnly) {
+            $pendingActions += @{ Type = "AudioConversion"; OriginalPath = $file.FullName; NewPath = $newPath; ActionType = "Audio" }
+            Write-Log "    Plan: Convert Audio to MP3." "DEBUG"
         } else { Write-Log "    Skipped (RenameOnly set but conversion needed)." "DEBUG" }
     } else { Write-Log "    Skipping unknown type." "DEBUG" }
 }
@@ -329,6 +357,11 @@ if ($PSCmdlet.ShouldProcess("process media files recursively in '$SourcePath'", 
         if ($action.Type -eq "VideoRename") {
             try { Move-Item -LiteralPath $action.OriginalPath -Destination $action.NewPath -Force; Write-Log "  Video renamed (no re-encode)." "INFO"; $renamedCount++ }
             catch { Write-Log "ERROR: Video rename failed: $($_.Exception.Message)" "ERROR"; $errorCount++ }
+            continue
+        }
+        if ($action.Type -eq "AudioRename") {
+            try { Move-Item -LiteralPath $action.OriginalPath -Destination $action.NewPath -Force; Write-Log "  Audio renamed (no re-encode)." "INFO"; $renamedCount++ }
+            catch { Write-Log "ERROR: Audio rename failed: $($_.Exception.Message)" "ERROR"; $errorCount++ }
             continue
         }
 
@@ -415,6 +448,17 @@ if ($PSCmdlet.ShouldProcess("process media files recursively in '$SourcePath'", 
                 $conversionSuccessful = $res.Success
                 if ($conversionSuccessful) { Write-Log "  Video conversion completed." "INFO"; $convertedCount++ }
                 else { Write-Log "ERROR: Video conversion failed. Exit $($res.ExitCode)" "ERROR"; Write-Log "FFmpeg Output: $($res.FFMpegOutput)" "ERROR"; $errorCount++ }
+            } elseif ($action.ActionType -eq "Audio" -and ($action.Type -eq "AudioConversion")) {
+                $ffmpegArgs = @(
+                    "-i", "`"$($action.OriginalPath)`"",
+                    "-c:a", "libmp3lame",
+                    "-b:a", "$($Q.AudioBitrate)",
+                    "-y", "`"$($action.NewPath)`""
+                )
+                $res = Invoke-FFmpegConversion -FFMpegExePath $FFmpegPath -Arguments $ffmpegArgs -OriginalFilePath $action.OriginalPath
+                $conversionSuccessful = $res.Success
+                if ($conversionSuccessful) { Write-Log "  Audio conversion completed." "INFO"; $convertedCount++ }
+                else { Write-Log "ERROR: Audio conversion failed. Exit $($res.ExitCode)" "ERROR"; Write-Log "FFmpeg Output: $($res.FFMpegOutput)" "ERROR"; $errorCount++ }
             }
         } catch {
             Write-Log "CRITICAL ERROR during '$($action.OriginalPath)': $($_.Exception.Message)" "ERROR"; $errorCount++; $conversionSuccessful = $false
