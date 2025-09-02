@@ -35,7 +35,6 @@ param(
     [Parameter(HelpMessage = "Log file path.")]
     [string]$LogFile,
 
-    # New features
     [Parameter(HelpMessage = "Quality preset: Default keeps your flags; Low smaller; Medium balanced; High larger/better.")]
     [ValidateSet("Default", "Low", "Medium", "High")]
     [string]$QualityPreset = "Default",
@@ -53,41 +52,53 @@ param(
     [switch]$Force
 )
 
-# --- Globals ---
-$script:LogBuffer = [System.Collections.ArrayList]::new()
-$script:LogFileStream = $null
+# --- Global Variables ---
+$script:logBuffer = [System.Collections.ArrayList]::new()
+$script:logFileStream = $null
 
 $imageExtensions = "*.jpg", "*.jpeg", "*.png", "*.webp", "*.heic", "*.heif"
 $videoExtensions = "*.3gp", "*.mkv", "*.mp4", "*.avi", "*.webm"
 $audioExtensions = "*.m4a", "*.wav", "*.flac", "*.aac", "*.ogg", "*.wma", "*.mp3"
 
-# --- Helpers ---
+# --- Helper Functions ---
 function Write-Log {
     param(
         [Parameter(Mandatory)][string]$Message,
         [ValidateSet("INFO", "WARNING", "ERROR", "DEBUG")][string]$Level = "INFO"
     )
+    
     $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
     $logEntry = "[$timestamp][$Level] $Message"
-    $script:LogBuffer.Add($logEntry) | Out-Null
+    $script:logBuffer.Add($logEntry) | Out-Null
+    
     switch ($Level) {
         "ERROR" { Write-Error $Message }
         "WARNING" { Write-Warning $Message }
         "INFO" { Write-Host $Message }
         "DEBUG" { Write-Verbose $Message }
     }
-    if ($script:LogFileStream) {
-        try { $script:LogFileStream.WriteLine($logEntry) } catch {
+    
+    if ($script:logFileStream) {
+        try {
+            $script:logFileStream.WriteLine($logEntry)
+        } catch {
             Write-Host "WARNING: Failed to write to log file: $($_.Exception.Message)" -ForegroundColor Yellow
         }
     }
 }
 
 function Test-FFmpegAccessibility {
-    param([Parameter(Mandatory)][string]$FFMpegExePath)
-    Write-Log "Checking FFmpeg at '$FFMpegExePath'..." "DEBUG"
-    try { & $FFMpegExePath -version | Out-Null; Write-Log "FFmpeg is accessible." "INFO"; return $true }
-    catch { Write-Log "ERROR: FFmpeg not found or inaccessible. Ensure it's installed and on PATH, or pass -FFmpegPath." "ERROR"; return $false }
+    param([Parameter(Mandatory)][string]$FFmpegExePath)
+    
+    Write-Log "Checking FFmpeg at '$FFmpegExePath'..." "DEBUG"
+    try {
+        & $FFmpegExePath -version | Out-Null
+        Write-Log "FFmpeg is accessible." "INFO"
+        return $true
+    } catch {
+        Write-Log "ERROR: FFmpeg not found or inaccessible. Ensure it's installed and on PATH, or pass -FFmpegPath." "ERROR"
+        return $false
+    }
 }
 
 function Get-UniqueTimestampFileName {
@@ -97,69 +108,132 @@ function Get-UniqueTimestampFileName {
         [Parameter(Mandatory)][string]$Prefix,
         [Parameter(Mandatory)][string]$OutputDirectory
     )
+    
     $timestamp = $OriginalFile.LastWriteTime.ToString("yyyyMMdd_HHmmss_fff")
     $baseName = "${Prefix}_$timestamp"
     $proposedName = "$baseName$TargetExtension"
     $newPath = Join-Path $OutputDirectory $proposedName
-    $i = 1
+    
+    $counter = 1
     while (Test-Path $newPath) {
-        $proposedName = "$baseName" + "_$i" + $TargetExtension
+        $proposedName = "$baseName" + "_$counter" + $TargetExtension
         $newPath = Join-Path $OutputDirectory $proposedName
-        $i++
+        $counter++
     }
+    
     return $newPath
 }
 
 function Invoke-FFmpegConversion {
     param(
-        [Parameter(Mandatory)][string]$FFMpegExePath,
+        [Parameter(Mandatory)][string]$FFmpegExePath,
         [Parameter(Mandatory)][string[]]$Arguments,
         [Parameter(Mandatory)][string]$OriginalFilePath
     )
-    Write-Log "  FFmpeg: `"$FFMpegExePath`" $($Arguments -join ' ')" "DEBUG"
+    
+    Write-Log "  FFmpeg: `"$FFmpegExePath`" $($Arguments -join ' ')" "DEBUG"
     $tempErrorFile = [System.IO.Path]::GetTempFileName()
-    $r = @{ Success = $false; FFMpegOutput = ""; ExitCode = -1 }
+    $result = @{ Success = $false; FFmpegOutput = ""; ExitCode = -1 }
+    
     try {
-        $p = Start-Process -FilePath $FFMpegExePath -ArgumentList $Arguments -NoNewWindow -PassThru -Wait -RedirectStandardError $tempErrorFile
-        $r.FFMpegOutput = (Get-Content $tempErrorFile | Out-String).Trim()
-        $r.ExitCode = $p.ExitCode
-        $r.Success = ($r.ExitCode -eq 0)
+        $process = Start-Process -FilePath $FFmpegExePath -ArgumentList $Arguments -NoNewWindow -PassThru -Wait -RedirectStandardError $tempErrorFile
+        $result.FFmpegOutput = (Get-Content $tempErrorFile | Out-String).Trim()
+        $result.ExitCode = $process.ExitCode
+        $result.Success = ($result.ExitCode -eq 0)
     } catch {
         Write-Log "ERROR: Start-Process failed for '$OriginalFilePath': $($_.Exception.Message)" "ERROR"
-        $r.FFMpegOutput = "PowerShell Start-Process Error: $($_.Exception.Message)"
-    } finally { Remove-Item $tempErrorFile -ErrorAction SilentlyContinue }
-    return $r
+        $result.FFmpegOutput = "PowerShell Start-Process Error: $($_.Exception.Message)"
+    } finally {
+        Remove-Item $tempErrorFile -ErrorAction SilentlyContinue
+    }
+    
+    return $result
 }
 
-function Read-OriginalFile {
+function Remove-OriginalFile {
     param(
         [Parameter(Mandatory)][string]$OriginalFilePath,
         [switch]$MoveOriginals,
         [Parameter(Mandatory)][string]$SourceBaseDir
     )
+    
     if ($MoveOriginals) {
         $relativeDir = (Get-Item $OriginalFilePath).Directory.FullName.Substring($SourceBaseDir.Length).TrimStart("\", "/")
         $archiveRoot = Join-Path (Split-Path $SourceBaseDir) "Processed_Originals"
         $archiveDir = Join-Path $archiveRoot $relativeDir
         $archivePath = Join-Path $archiveDir (Split-Path $OriginalFilePath -Leaf)
+        
         Write-Log "  Moving original to archive: '$OriginalFilePath' -> '$archivePath'" "INFO"
-        try { New-Item -ItemType Directory -Path $archiveDir -ErrorAction SilentlyContinue | Out-Null; Move-Item -Path $OriginalFilePath -Destination $archivePath -Force -ErrorAction Stop; Write-Log "  Original moved." "INFO"; return $true }
-        catch { Write-Log "WARNING: Failed to move original '$OriginalFilePath': $($_.Exception.Message)" "WARNING"; return $false }
+        try {
+            New-Item -ItemType Directory -Path $archiveDir -ErrorAction SilentlyContinue | Out-Null
+            Move-Item -Path $OriginalFilePath -Destination $archivePath -Force -ErrorAction Stop
+            Write-Log "  Original moved." "INFO"
+            return $true
+        } catch {
+            Write-Log "WARNING: Failed to move original '$OriginalFilePath': $($_.Exception.Message)" "WARNING"
+            return $false
+        }
     } else {
         Write-Log "  Removing original: $OriginalFilePath" "INFO"
-        try { Remove-Item -Path $OriginalFilePath -Force -ErrorAction Stop; Write-Log "  Original removed." "INFO"; return $true }
-        catch { Write-Log "WARNING: Failed to remove original '$OriginalFilePath': $($_.Exception.Message)" "WARNING"; return $false }
+        try {
+            Remove-Item -Path $OriginalFilePath -Force -ErrorAction Stop
+            Write-Log "  Original removed." "INFO"
+            return $true
+        } catch {
+            Write-Log "WARNING: Failed to remove original '$OriginalFilePath': $($_.Exception.Message)" "WARNING"
+            return $false
+        }
+    }
+}
+
+function Get-MediaFileAction {
+    param(
+        [Parameter(Mandatory)][System.IO.FileInfo]$File,
+        [Parameter(Mandatory)][string[]]$Extensions,
+        [Parameter(Mandatory)][string]$TargetExtension,
+        [Parameter(Mandatory)][string]$Prefix,
+        [Parameter(Mandatory)][string]$ActionType,
+        [Parameter(Mandatory)][string]$OutputDirectory,
+        [switch]$EnableRename,
+        [switch]$RenameOnly
+    )
+    
+    $extension = $File.Extension.ToLower()
+    $newPath = Get-UniqueTimestampFileName -OriginalFile $File -TargetExtension $TargetExtension -Prefix $Prefix -OutputDirectory $OutputDirectory
+    $pathsSame = ($File.FullName.ToLower() -eq $newPath.ToLower())
+    
+    if ($extension -eq $TargetExtension -and $pathsSame) {
+        Write-Log "    Skipped (already $($TargetExtension.ToUpper()) and correctly named)." "DEBUG"
+        return @{ Type = "Skipped"; OriginalPath = $File.FullName; NewPath = $newPath; ActionType = $ActionType }
+    } elseif ($extension -eq $TargetExtension -and $EnableRename) {
+        Write-Log "    Plan: Rename $ActionType." "DEBUG"
+        return @{ Type = "${ActionType}Rename"; OriginalPath = $File.FullName; NewPath = $newPath; ActionType = $ActionType }
+    } elseif ($extension -eq $TargetExtension -and -not $EnableRename) {
+        Write-Log "    Skipped ($($TargetExtension.ToUpper()) but renaming disabled)." "DEBUG"
+        return @{ Type = "Skipped"; OriginalPath = $File.FullName; NewPath = $File.FullName; ActionType = $ActionType }
+    } elseif (-not $RenameOnly) {
+        Write-Log "    Plan: Convert $ActionType to $($TargetExtension.ToUpper())." "DEBUG"
+        return @{ Type = "${ActionType}Conversion"; OriginalPath = $File.FullName; NewPath = $newPath; ActionType = $ActionType }
+    } else {
+        Write-Log "    Skipped (RenameOnly set but conversion needed)." "DEBUG"
+        return $null
     }
 }
 
 function Confirm-Actions {
     param([Parameter(Mandatory)][array]$PendingActions)
-    if ($PendingActions.Count -eq 0) { Write-Log "No files require conversion or renaming." "INFO"; return $false }
+    
+    if ($PendingActions.Count -eq 0) {
+        Write-Log "No files require conversion or renaming." "INFO"
+        return $false
+    }
+    
     Write-Host "`n--- Proposed Actions ---" -ForegroundColor Cyan
     Write-Host "The following files will be processed:"
     $currentLocation = (Get-Location).Path
-    $i = 1
-    foreach ($action in $PendingActions) {
+    
+    for ($i = 0; $i -lt $PendingActions.Count; $i++) {
+        $action = $PendingActions[$i]
         $actionType = switch ($action.Type) {
             "ImageConversion" { "Convert Image" }
             "VideoConversion" { "Convert Video" }
@@ -169,98 +243,384 @@ function Confirm-Actions {
             "AudioRename" { "Rename Audio" }
             default { "Unknown Action" }
         }
+        
         $displayOriginalPath = $action.OriginalPath
         $displayNewPath = $action.NewPath
-        if ($displayOriginalPath.StartsWith($currentLocation, [System.StringComparison]::OrdinalIgnoreCase)) { $displayOriginalPath = "." + $displayOriginalPath.Substring($currentLocation.Length) }
-        if ($displayNewPath.StartsWith($currentLocation, [System.StringComparison]::OrdinalIgnoreCase)) { $displayNewPath = "." + $displayNewPath.Substring($currentLocation.Length) }
+        
+        if ($displayOriginalPath.StartsWith($currentLocation, [System.StringComparison]::OrdinalIgnoreCase)) {
+            $displayOriginalPath = "." + $displayOriginalPath.Substring($currentLocation.Length)
+        }
+        if ($displayNewPath.StartsWith($currentLocation, [System.StringComparison]::OrdinalIgnoreCase)) {
+            $displayNewPath = "." + $displayNewPath.Substring($currentLocation.Length)
+        }
+        
         $displayOriginalPath = $displayOriginalPath.TrimStart("\", "/")
         $displayNewPath = $displayNewPath.TrimStart("\", "/")
-        Write-Host "  $i. ${actionType}: $displayOriginalPath -> $displayNewPath"
-        $i++
+        
+        Write-Host "  $($i + 1). ${actionType}: $displayOriginalPath -> $displayNewPath"
     }
-    if ($Force.IsPresent) { return $true }
+    
+    if ($Force.IsPresent) {
+        return $true
+    }
+    
     Write-Host "`nProceed? (Y/N)" -ForegroundColor Green
     $response = Read-Host
     return ($response -match '^(y|yes)$')
 }
 
-# --- New: ffprobe/HDR helpers ---
 function Get-VideoStreamInfo {
-    param([Parameter(Mandatory)][string]$FFMpegExePath, [Parameter(Mandatory)][string]$InputPath)
-    $ffprobe = ($FFMpegExePath -replace 'ffmpeg(\.exe)?$', 'ffprobe$1')
-    if (-not (Get-Command $ffprobe -ErrorAction SilentlyContinue)) { $ffprobe = "ffprobe.exe" }
-    $ffprobeArgs = @("-v", "error", "-select_streams", "v:0", "-show_entries", "stream=codec_name,pix_fmt,color_space,color_transfer,color_primaries", "-of", "json", "`"$InputPath`"")
-    try { $json = & $ffprobe $ffprobeArgs 2>$null; if (-not $json) { return $null }; ($json | ConvertFrom-Json).streams[0] } catch { return $null }
-}
-function Test-IsHDR {
-    param([object]$s)
-    if (-not $s) { return $false }
-    $pix10 = ($s.pix_fmt -match '10|12')
-    $p2020 = ($s.color_primaries -match '2020')
-    $trcHDR = ($s.color_transfer -match 'arib-std-b67|smpte2084|pq')
-    return ($pix10 -and ($p2020 -or $trcHDR))
+    param(
+        [Parameter(Mandatory)][string]$FFmpegExePath,
+        [Parameter(Mandatory)][string]$InputPath
+    )
+    
+    $ffprobe = ($FFmpegExePath -replace 'ffmpeg(\.exe)?$', 'ffprobe$1')
+    if (-not (Get-Command $ffprobe -ErrorAction SilentlyContinue)) {
+        $ffprobe = "ffprobe.exe"
+    }
+    
+    $ffprobeArgs = @(
+        "-v", "error",
+        "-select_streams", "v:0",
+        "-show_entries", "stream=codec_name,pix_fmt,color_space,color_transfer,color_primaries",
+        "-of", "json",
+        "`"$InputPath`""
+    )
+    
+    try {
+        $json = & $ffprobe $ffprobeArgs 2>$null
+        if (-not $json) {
+            return $null
+        }
+        return ($json | ConvertFrom-Json).streams[0]
+    } catch {
+        return $null
+    }
 }
 
-# --- New: Quality resolver ---
+function Test-IsHDR {
+    param([object]$StreamInfo)
+    
+    if (-not $StreamInfo) {
+        return $false
+    }
+    
+    $pix10Bit = ($StreamInfo.pix_fmt -match '10|12')
+    $bt2020Primaries = ($StreamInfo.color_primaries -match '2020')
+    $hdrTransfer = ($StreamInfo.color_transfer -match 'arib-std-b67|smpte2084|pq')
+    
+    return ($pix10Bit -and ($bt2020Primaries -or $hdrTransfer))
+}
+
+function Get-VideoFilters {
+    param(
+        [int]$UpscaleWidth,
+        [switch]$Sharpen
+    )
+    
+    $filters = @()
+    
+    if ($UpscaleWidth -gt 0) {
+        $filters += "scale=w=$UpscaleWidth:h=-2:flags=lanczos"
+    }
+    
+    if ($Sharpen) {
+        $filters += "unsharp=5:5:0.8:5:5:0.0"
+    }
+    
+    return $filters
+}
+
+function Get-HDRTonemapFilter {
+    param(
+        [object]$VideoInfo,
+        [string[]]$AdditionalFilters
+    )
+    
+    $baseFilter = "zscale=transferin=arib-std-b67:primariesin=bt2020:matrixin=bt2020nc," +
+    "zscale=transfer=linear,tonemap=hable," +
+    "zscale=transfer=bt709:primaries=bt709:matrix=bt709,format=yuv420p"
+    
+    if ($VideoInfo.color_transfer -match 'smpte2084|pq') {
+        $baseFilter = $baseFilter -replace 'arib-std-b67', 'smpte2084'
+    }
+    
+    if ($AdditionalFilters.Count -gt 0) {
+        $baseFilter = "$baseFilter," + ($AdditionalFilters -join ',')
+    }
+    
+    return $baseFilter
+}
+
 function Get-EffectiveQuality {
     param(
-        [string]$QualityPreset, [int]$VideoCRF, [string]$VideoPreset, [string]$AudioBitrate, [int]$ImageQuality
+        [string]$QualityPreset,
+        [int]$VideoCRF,
+        [string]$VideoPreset,
+        [string]$AudioBitrate,
+        [int]$ImageQuality
     )
-    $eff = [ordered]@{
+    
+    $effectiveQuality = [ordered]@{
         VideoCRF     = $VideoCRF
         VideoPreset  = $VideoPreset
         AudioBitrate = $AudioBitrate
         ImageQuality = $ImageQuality
     }
+    
     switch ($QualityPreset) {
-        "Low" { $eff.VideoCRF = 28; $eff.VideoPreset = "fast"; $eff.AudioBitrate = "128k"; $eff.ImageQuality = 8 }
-        "Medium" { $eff.VideoCRF = 18; $eff.VideoPreset = "medium"; $eff.AudioBitrate = "192k"; $eff.ImageQuality = [Math]::Min($ImageQuality, 2) }
-        "High" { $eff.VideoCRF = 14; $eff.VideoPreset = "slow"; $eff.AudioBitrate = "256k"; $eff.ImageQuality = 1 }
-        default { }
+        "Low" {
+            $effectiveQuality.VideoCRF = 28
+            $effectiveQuality.VideoPreset = "fast"
+            $effectiveQuality.AudioBitrate = "128k"
+            $effectiveQuality.ImageQuality = 8
+        }
+        "Medium" {
+            $effectiveQuality.VideoCRF = 18
+            $effectiveQuality.VideoPreset = "medium"
+            $effectiveQuality.AudioBitrate = "192k"
+            $effectiveQuality.ImageQuality = [Math]::Min($ImageQuality, 2)
+        }
+        "High" {
+            $effectiveQuality.VideoCRF = 14
+            $effectiveQuality.VideoPreset = "slow"
+            $effectiveQuality.AudioBitrate = "256k"
+            $effectiveQuality.ImageQuality = 1
+        }
     }
-    return $eff
+    
+    return $effectiveQuality
 }
 
-# --- Start ---
+function Invoke-MediaConversion {
+    param(
+        [Parameter(Mandatory)][hashtable]$Action,
+        [Parameter(Mandatory)][hashtable]$QualitySettings,
+        [Parameter(Mandatory)][string]$FFmpegPath,
+        [int]$UpscaleWidth,
+        [switch]$Sharpen,
+        [switch]$KeepHDR
+    )
+    
+    $conversionSuccessful = $false
+    
+    try {
+        switch ($Action.ActionType) {
+            "Image" {
+                if ($Action.Type -eq "ImageConversion") {
+                    $imageFilters = Get-VideoFilters -UpscaleWidth $UpscaleWidth -Sharpen:$Sharpen
+                    $videoFilterArgs = @()
+                    
+                    if ($imageFilters.Count -gt 0) {
+                        $videoFilterArgs = @("-vf", "`"$($imageFilters -join ',')`"")
+                    }
+                    
+                    $ffmpegArgs = @("-i", "`"$($Action.OriginalPath)`"") + $videoFilterArgs + @(
+                        "-q:v", "$($QualitySettings.ImageQuality)",
+                        "-y", "`"$($Action.NewPath)`""
+                    )
+                    
+                    $result = Invoke-FFmpegConversion -FFmpegExePath $FFmpegPath -Arguments $ffmpegArgs -OriginalFilePath $Action.OriginalPath
+                    $conversionSuccessful = $result.Success
+                    
+                    if ($conversionSuccessful) {
+                        Write-Log "  Image conversion completed." "INFO"
+                    } else {
+                        Write-Log "ERROR: Image conversion failed. Exit $($result.ExitCode)" "ERROR"
+                        Write-Log "FFmpeg Output: $($result.FFmpegOutput)" "ERROR"
+                    }
+                }
+            }
+            
+            "Video" {
+                if ($Action.Type -eq "VideoConversion") {
+                    $videoInfo = Get-VideoStreamInfo -FFmpegExePath $FFmpegPath -InputPath $Action.OriginalPath
+                    $isHDR = Test-IsHDR -StreamInfo $videoInfo
+                    $inputExtension = [IO.Path]::GetExtension($Action.OriginalPath).ToLowerInvariant()
+                    
+                    # Handle different video conversion scenarios
+                    if ($inputExtension -eq ".mp4" -and $isHDR -and $KeepHDR) {
+                        # Re-mux existing MP4 HEVC
+                        $ffmpegArgs = @("-i", "`"$($Action.OriginalPath)`"", "-c", "copy", "-y", "`"$($Action.NewPath)`"")
+                    } elseif ($isHDR -and $KeepHDR) {
+                        # Keep HDR: HEVC 10-bit
+                        $videoFilters = Get-VideoFilters -UpscaleWidth $UpscaleWidth -Sharpen:$Sharpen
+                        $ffmpegArgs = @("-i", "`"$($Action.OriginalPath)`"")
+                        
+                        if ($videoFilters.Count -gt 0) {
+                            $ffmpegArgs += @("-vf", "`"$($videoFilters -join ',')`"")
+                        }
+                        
+                        $ffmpegArgs += @(
+                            "-c:v", "libx265",
+                            "-pix_fmt", "yuv420p10le",
+                            "-tag:v", "hvc1",
+                            "-crf", "$($QualitySettings.VideoCRF)",
+                            "-preset", "$($QualitySettings.VideoPreset)",
+                            "-c:a", "copy",
+                            "-y", "`"$($Action.NewPath)`""
+                        )
+                    } elseif ($isHDR) {
+                        # HDR -> SDR conversion
+                        $videoFilters = Get-VideoFilters -UpscaleWidth $UpscaleWidth -Sharpen:$Sharpen
+                        $tonemapFilter = Get-HDRTonemapFilter -VideoInfo $videoInfo -AdditionalFilters $videoFilters
+                        
+                        $ffmpegArgs = @(
+                            "-i", "`"$($Action.OriginalPath)`"",
+                            "-vf", "`"$tonemapFilter`"",
+                            "-c:v", "libx264",
+                            "-crf", "$($QualitySettings.VideoCRF)",
+                            "-preset", "$($QualitySettings.VideoPreset)",
+                            "-pix_fmt", "yuv420p",
+                            "-colorspace", "bt709",
+                            "-color_primaries", "bt709",
+                            "-color_trc", "bt709",
+                            "-c:a", "aac",
+                            "-b:a", "$($QualitySettings.AudioBitrate)",
+                            "-y", "`"$($Action.NewPath)`""
+                        )
+                    } else {
+                        # Standard SDR conversion
+                        $videoFilters = Get-VideoFilters -UpscaleWidth $UpscaleWidth -Sharpen:$Sharpen
+                        $ffmpegArgs = @("-i", "`"$($Action.OriginalPath)`"")
+                        
+                        if ($videoFilters.Count -gt 0) {
+                            $ffmpegArgs += @("-vf", "`"$($videoFilters -join ',')`"")
+                        }
+                        
+                        $ffmpegArgs += @(
+                            "-c:v", "libx264",
+                            "-crf", "$($QualitySettings.VideoCRF)",
+                            "-preset", "$($QualitySettings.VideoPreset)",
+                            "-c:a", "aac",
+                            "-b:a", "$($QualitySettings.AudioBitrate)",
+                            "-y", "`"$($Action.NewPath)`""
+                        )
+                    }
+                    
+                    $result = Invoke-FFmpegConversion -FFmpegExePath $FFmpegPath -Arguments $ffmpegArgs -OriginalFilePath $Action.OriginalPath
+                    $conversionSuccessful = $result.Success
+                    
+                    if ($conversionSuccessful) {
+                        Write-Log "  Video conversion completed." "INFO"
+                    } else {
+                        Write-Log "ERROR: Video conversion failed. Exit $($result.ExitCode)" "ERROR"
+                        Write-Log "FFmpeg Output: $($result.FFmpegOutput)" "ERROR"
+                    }
+                }
+            }
+            
+            "Audio" {
+                if ($Action.Type -eq "AudioConversion") {
+                    $ffmpegArgs = @(
+                        "-i", "`"$($Action.OriginalPath)`"",
+                        "-c:a", "libmp3lame",
+                        "-b:a", "$($QualitySettings.AudioBitrate)",
+                        "-y", "`"$($Action.NewPath)`""
+                    )
+                    
+                    $result = Invoke-FFmpegConversion -FFmpegExePath $FFmpegPath -Arguments $ffmpegArgs -OriginalFilePath $Action.OriginalPath
+                    $conversionSuccessful = $result.Success
+                    
+                    if ($conversionSuccessful) {
+                        Write-Log "  Audio conversion completed." "INFO"
+                    } else {
+                        Write-Log "ERROR: Audio conversion failed. Exit $($result.ExitCode)" "ERROR"
+                        Write-Log "FFmpeg Output: $($result.FFmpegOutput)" "ERROR"
+                    }
+                }
+            }
+        }
+    } catch {
+        Write-Log "CRITICAL ERROR during '$($Action.OriginalPath)': $($_.Exception.Message)" "ERROR"
+        $conversionSuccessful = $false
+    }
+    
+    return $conversionSuccessful
+}
+
+function Invoke-FileRename {
+    param(
+        [Parameter(Mandatory)][hashtable]$Action
+    )
+    
+    try {
+        Move-Item -LiteralPath $Action.OriginalPath -Destination $Action.NewPath -Force
+        Write-Log "  $($Action.ActionType) renamed (no re-encode)." "INFO"
+        return $true
+    } catch {
+        Write-Log "ERROR: $($Action.ActionType) rename failed: $($_.Exception.Message)" "ERROR"
+        return $false
+    }
+}
+
+# --- Main Script Execution ---
 Write-Log "--- Script Start ---" "INFO"
 Write-Log "Started at $(Get-Date)" "INFO"
 
+# Validate and resolve source path
 $SourcePath = (Resolve-Path $SourcePath).Path
-if (-not (Test-Path $SourcePath -PathType Container)) { Write-Log "ERROR: SourcePath '$SourcePath' is not a valid directory." "ERROR"; return }
+if (-not (Test-Path $SourcePath -PathType Container)) {
+    Write-Log "ERROR: SourcePath '$SourcePath' is not a valid directory." "ERROR"
+    return
+}
 Write-Log "Source Directory: '$SourcePath'" "INFO"
 
-$AbsoluteDestinationRoot = $null
+# Setup destination path
+$absoluteDestinationRoot = $null
 if ($DestinationPath) {
     try {
-        if (-not (Test-Path $DestinationPath)) { New-Item -ItemType Directory -Path $DestinationPath -ErrorAction Stop | Out-Null }
+        if (-not (Test-Path $DestinationPath)) {
+            New-Item -ItemType Directory -Path $DestinationPath -ErrorAction Stop | Out-Null
+        }
         $DestinationPath = (Resolve-Path $DestinationPath -ErrorAction Stop).Path
-        $AbsoluteDestinationRoot = $DestinationPath
-        Write-Log "Destination Directory: '$AbsoluteDestinationRoot' (preserving structure)" "INFO"
+        $absoluteDestinationRoot = $DestinationPath
+        Write-Log "Destination Directory: '$absoluteDestinationRoot' (preserving structure)" "INFO"
     } catch {
-        Write-Log "ERROR: Could not set up DestinationPath '$DestinationPath'. $($_.Exception.Message)" "ERROR"; return
+        Write-Log "ERROR: Could not set up DestinationPath '$DestinationPath'. $($_.Exception.Message)" "ERROR"
+        return
     }
-} else { Write-Log "No DestinationPath provided. Output next to originals." "INFO" }
-
-if ($MoveOriginals) { Write-Log "Originals will be moved to 'Processed_Originals' next to source root." "INFO" }
-else { Write-Log "Originals will be deleted after successful processing." "INFO" }
-
-if ($LogFile) {
-    try {
-        $LogFileDir = Split-Path $LogFile
-        if ($LogFileDir -and -not (Test-Path $LogFileDir -PathType Container)) { New-Item -ItemType Directory -Path $LogFileDir -ErrorAction Stop | Out-Null }
-        $script:LogFileStream = [System.IO.StreamWriter]::new($LogFile, $true)
-        Write-Log "Logging to: '$LogFile'" "INFO"
-        foreach ($entry in $script:LogBuffer) { $script:LogFileStream.WriteLine($entry) }
-        $script:LogBuffer.Clear()
-    } catch { Write-Log "WARNING: Could not open log file '$LogFile': $($_.Exception.Message). Console-only logging." "WARNING"; $LogFile = $null }
+} else {
+    Write-Log "No DestinationPath provided. Output next to originals." "INFO"
 }
 
-if (-not (Test-FFmpegAccessibility -FFMpegExePath $FFmpegPath)) { return }
+# Log original file handling strategy
+if ($MoveOriginals) {
+    Write-Log "Originals will be moved to 'Processed_Originals' next to source root." "INFO"
+} else {
+    Write-Log "Originals will be deleted after successful processing." "INFO"
+}
 
-# Resolve quality now
-$Q = Get-EffectiveQuality -QualityPreset $QualityPreset -VideoCRF $VideoCRF -VideoPreset $VideoPreset -AudioBitrate $AudioBitrate -ImageQuality $ImageQuality
+# Setup logging
+if ($LogFile) {
+    try {
+        $logFileDir = Split-Path $LogFile
+        if ($logFileDir -and -not (Test-Path $logFileDir -PathType Container)) {
+            New-Item -ItemType Directory -Path $logFileDir -ErrorAction Stop | Out-Null
+        }
+        $script:logFileStream = [System.IO.StreamWriter]::new($LogFile, $true)
+        Write-Log "Logging to: '$LogFile'" "INFO"
+        
+        foreach ($entry in $script:logBuffer) {
+            $script:logFileStream.WriteLine($entry)
+        }
+        $script:logBuffer.Clear()
+    } catch {
+        Write-Log "WARNING: Could not open log file '$LogFile': $($_.Exception.Message). Console-only logging." "WARNING"
+        $LogFile = $null
+    }
+}
 
-# Discover
+# Validate FFmpeg accessibility
+if (-not (Test-FFmpegAccessibility -FFmpegExePath $FFmpegPath)) {
+    return
+}
+
+# Resolve quality settings
+$qualitySettings = Get-EffectiveQuality -QualityPreset $QualityPreset -VideoCRF $VideoCRF -VideoPreset $VideoPreset -AudioBitrate $AudioBitrate -ImageQuality $ImageQuality
+
+# Discover files
 Write-Log "`n--- Discovering Files ---" "INFO"
 Write-Log "Scanning '$SourcePath' recursively..." "INFO"
 $pendingActions = @()
@@ -268,214 +628,110 @@ $allSourceFiles = Get-ChildItem -Path (Join-Path $SourcePath "*") -File -Include
 
 foreach ($file in $allSourceFiles) {
     Write-Log "  Examining: $($file.FullName)" "DEBUG"
-    $ext = $file.Extension.ToLower()
-    $targetOutputDirectory = if ($AbsoluteDestinationRoot) {
+    $extension = $file.Extension.ToLower()
+    
+    $targetOutputDirectory = if ($absoluteDestinationRoot) {
         $relativePath = $file.Directory.FullName.Substring($SourcePath.Length).TrimStart("\", "/")
-        $dir = Join-Path $AbsoluteDestinationRoot $relativePath
-        New-Item -ItemType Directory -Path $dir -ErrorAction SilentlyContinue | Out-Null
-        $dir
-    } else { $file.DirectoryName }
-
-    if ($imageExtensions -contains "*$ext") {
-        $newPath = Get-UniqueTimestampFileName -OriginalFile $file -TargetExtension ".jpg" -Prefix "IMG" -OutputDirectory $targetOutputDirectory
-        $pathsSame = ($file.FullName.ToLower() -eq $newPath.ToLower())
-        if ($ext -eq ".jpg" -and $pathsSame) {
-            $pendingActions += @{ Type = "Skipped"; OriginalPath = $file.FullName; NewPath = $newPath; ActionType = "Image" }
-            Write-Log "    Skipped (already JPG and correctly named)." "DEBUG"
-        } elseif ($ext -eq ".jpg" -and $EnableRename) {
-            $pendingActions += @{ Type = "ImageRename"; OriginalPath = $file.FullName; NewPath = $newPath; ActionType = "Image" }
-            Write-Log "    Plan: Rename Image." "DEBUG"
-        } elseif ($ext -eq ".jpg" -and -not $EnableRename) {
-            $pendingActions += @{ Type = "Skipped"; OriginalPath = $file.FullName; NewPath = $file.FullName; ActionType = "Image" }
-            Write-Log "    Skipped (JPG but renaming disabled)." "DEBUG"
-        } elseif (-not $RenameOnly) {
-            $pendingActions += @{ Type = "ImageConversion"; OriginalPath = $file.FullName; NewPath = $newPath; ActionType = "Image" }
-            Write-Log "    Plan: Convert Image to JPG." "DEBUG"
-        } else { Write-Log "    Skipped (RenameOnly set but conversion needed)." "DEBUG" }
-    } elseif ($videoExtensions -contains "*$ext") {
-        $newPath = Get-UniqueTimestampFileName -OriginalFile $file -TargetExtension ".mp4" -Prefix "VID" -OutputDirectory $targetOutputDirectory
-        $pathsSame = ($file.FullName.ToLower() -eq $newPath.ToLower())
-        if ($ext -eq ".mp4" -and $pathsSame) {
-            $pendingActions += @{ Type = "Skipped"; OriginalPath = $file.FullName; NewPath = $newPath; ActionType = "Video" }
-            Write-Log "    Skipped (already MP4 and correctly named)." "DEBUG"
-        } elseif ($ext -eq ".mp4" -and $EnableRename) {
-            $pendingActions += @{ Type = "VideoRename"; OriginalPath = $file.FullName; NewPath = $newPath; ActionType = "Video" }
-            Write-Log "    Plan: Rename Video." "DEBUG"
-        } elseif ($ext -eq ".mp4" -and -not $EnableRename) {
-            $pendingActions += @{ Type = "Skipped"; OriginalPath = $file.FullName; NewPath = $file.FullName; ActionType = "Video" }
-            Write-Log "    Skipped (MP4 but renaming disabled)." "DEBUG"
-        } elseif (-not $RenameOnly) {
-            $pendingActions += @{ Type = "VideoConversion"; OriginalPath = $file.FullName; NewPath = $newPath; ActionType = "Video" }
-            Write-Log "    Plan: Convert Video to MP4." "DEBUG"
-        } else { Write-Log "    Skipped (RenameOnly set but conversion needed)." "DEBUG" }
-    } elseif ($audioExtensions -contains "*$ext") {
-        $newPath = Get-UniqueTimestampFileName -OriginalFile $file -TargetExtension ".mp3" -Prefix "AUD" -OutputDirectory $targetOutputDirectory
-        $pathsSame = ($file.FullName.ToLower() -eq $newPath.ToLower())
-        if ($ext -eq ".mp3" -and $pathsSame) {
-            $pendingActions += @{ Type = "Skipped"; OriginalPath = $file.FullName; NewPath = $newPath; ActionType = "Audio" }
-            Write-Log "    Skipped (already MP3 and correctly named)." "DEBUG"
-        } elseif ($ext -eq ".mp3" -and $EnableRename) {
-            $pendingActions += @{ Type = "AudioRename"; OriginalPath = $file.FullName; NewPath = $newPath; ActionType = "Audio" }
-            Write-Log "    Plan: Rename Audio." "DEBUG"
-        } elseif ($ext -eq ".mp3" -and -not $EnableRename) {
-            $pendingActions += @{ Type = "Skipped"; OriginalPath = $file.FullName; NewPath = $file.FullName; ActionType = "Audio" }
-            Write-Log "    Skipped (MP3 but renaming disabled)." "DEBUG"
-        } elseif (-not $RenameOnly) {
-            $pendingActions += @{ Type = "AudioConversion"; OriginalPath = $file.FullName; NewPath = $newPath; ActionType = "Audio" }
-            Write-Log "    Plan: Convert Audio to MP3." "DEBUG"
-        } else { Write-Log "    Skipped (RenameOnly set but conversion needed)." "DEBUG" }
-    } else { Write-Log "    Skipping unknown type." "DEBUG" }
+        $directory = Join-Path $absoluteDestinationRoot $relativePath
+        New-Item -ItemType Directory -Path $directory -ErrorAction SilentlyContinue | Out-Null
+        $directory
+    } else {
+        $file.DirectoryName
+    }
+    
+    $action = $null
+    
+    if ($imageExtensions -contains "*$extension") {
+        $action = Get-MediaFileAction -File $file -Extensions $imageExtensions -TargetExtension ".jpg" -Prefix "IMG" -ActionType "Image" -OutputDirectory $targetOutputDirectory -EnableRename:$EnableRename -RenameOnly:$RenameOnly
+    } elseif ($videoExtensions -contains "*$extension") {
+        $action = Get-MediaFileAction -File $file -Extensions $videoExtensions -TargetExtension ".mp4" -Prefix "VID" -ActionType "Video" -OutputDirectory $targetOutputDirectory -EnableRename:$EnableRename -RenameOnly:$RenameOnly
+    } elseif ($audioExtensions -contains "*$extension") {
+        $action = Get-MediaFileAction -File $file -Extensions $audioExtensions -TargetExtension ".mp3" -Prefix "AUD" -ActionType "Audio" -OutputDirectory $targetOutputDirectory -EnableRename:$EnableRename -RenameOnly:$RenameOnly
+    } else {
+        Write-Log "    Skipping unknown file type." "DEBUG"
+    }
+    
+    if ($action) {
+        $pendingActions += $action
+    }
 }
 
-$actualPending = $pendingActions | Where-Object { $_.Type -ne "Skipped" }
+$actualPendingActions = $pendingActions | Where-Object { $_.Type -ne "Skipped" }
 
-# Confirm & Execute
+# Confirm and execute actions
 if ($PSCmdlet.ShouldProcess("process media files recursively in '$SourcePath'", "Perform Conversion/Rename")) {
-    if ($actualPending.Count -eq 0) { Write-Log "`nNo actionable items. Exiting." "INFO"; return }
-    if (-not (Confirm-Actions -PendingActions $actualPending)) { Write-Log "`nCancelled by user." "INFO"; return }
-
+    if ($actualPendingActions.Count -eq 0) {
+        Write-Log "`nNo actionable items. Exiting." "INFO"
+        return
+    }
+    
+    if (-not (Confirm-Actions -PendingActions $actualPendingActions)) {
+        Write-Log "`nCancelled by user." "INFO"
+        return
+    }
+    
     Write-Log "`n--- Executing Actions ---" "INFO"
-    $convertedCount = 0; $renamedCount = 0; $skippedCount = 0; $errorCount = 0
-    $total = $pendingActions.Count; $i = 0
-
-    foreach ($action in $pendingActions) {
-        $i++
-        Write-Progress -Activity "Processing Media Files" -Status "($i/$total) $($action.OriginalPath | Split-Path -Leaf)" -PercentComplete ($i / $total * 100) -Id 1
+    $convertedCount = 0
+    $renamedCount = 0
+    $skippedCount = 0
+    $errorCount = 0
+    $totalActions = $pendingActions.Count
+    
+    for ($i = 0; $i -lt $totalActions; $i++) {
+        $action = $pendingActions[$i]
+        Write-Progress -Activity "Processing Media Files" -Status "($($i + 1)/$totalActions) $($action.OriginalPath | Split-Path -Leaf)" -PercentComplete (($i + 1) / $totalActions * 100) -Id 1
+        
         Write-Log "`n--- Processing File: $($action.OriginalPath | Split-Path -Leaf) ---" "INFO"
         Write-Log "  Planned Action: $($action.Type)" "INFO"
         Write-Log "  Original Path: $($action.OriginalPath)" "INFO"
         Write-Log "  New Path: $($action.NewPath)" "INFO"
-
-        if ($action.Type -eq "Skipped") { Write-Log "  Skipped (no action needed)." "INFO"; $skippedCount++; continue }
-
-        # Pure renames -> filesystem only
-        if ($action.Type -eq "ImageRename") {
-            try { Move-Item -LiteralPath $action.OriginalPath -Destination $action.NewPath -Force; Write-Log "  Image renamed (no re-encode)." "INFO"; $renamedCount++ }
-            catch { Write-Log "ERROR: Image rename failed: $($_.Exception.Message)" "ERROR"; $errorCount++ }
+        
+        if ($action.Type -eq "Skipped") {
+            Write-Log "  Skipped (no action needed)." "INFO"
+            $skippedCount++
             continue
         }
-        if ($action.Type -eq "VideoRename") {
-            try { Move-Item -LiteralPath $action.OriginalPath -Destination $action.NewPath -Force; Write-Log "  Video renamed (no re-encode)." "INFO"; $renamedCount++ }
-            catch { Write-Log "ERROR: Video rename failed: $($_.Exception.Message)" "ERROR"; $errorCount++ }
-            continue
-        }
-        if ($action.Type -eq "AudioRename") {
-            try { Move-Item -LiteralPath $action.OriginalPath -Destination $action.NewPath -Force; Write-Log "  Audio renamed (no re-encode)." "INFO"; $renamedCount++ }
-            catch { Write-Log "ERROR: Audio rename failed: $($_.Exception.Message)" "ERROR"; $errorCount++ }
-            continue
-        }
-
-        if ($RenameOnly -and ($action.Type -match "Conversion")) {
-            Write-Log "  Skipped: RenameOnly mode." "INFO"; $skippedCount++; continue
-        }
-
-        $conversionSuccessful = $false
-
-        try {
-            if ($action.ActionType -eq "Image" -and ($action.Type -eq "ImageConversion")) {
-                $imgFilters = @()
-                if ($UpscaleWidth -gt 0) { $imgFilters += "scale=w=$UpscaleWidth:h=-2:flags=lanczos" }
-                if ($Sharpen) { $imgFilters += "unsharp=5:5:0.8:5:5:0.0" }
-                $vfArgs = @(); if ($imgFilters.Count -gt 0) { $vfArgs = @("-vf", "`"$($imgFilters -join ',')`"") }
-
-                $ffmpegArgs = @("-i", "`"$($action.OriginalPath)`"") + $vfArgs + @(
-                    "-q:v", "$($Q.ImageQuality)",
-                    "-y", "`"$($action.NewPath)`""
-                )
-                $res = Invoke-FFmpegConversion -FFMpegExePath $FFmpegPath -Arguments $ffmpegArgs -OriginalFilePath $action.OriginalPath
-                $conversionSuccessful = $res.Success
-                if ($conversionSuccessful) { Write-Log "  Image conversion completed." "INFO"; $convertedCount++ }
-                else { Write-Log "ERROR: Image conversion failed. Exit $($res.ExitCode)" "ERROR"; Write-Log "FFmpeg Output: $($res.FFMpegOutput)" "ERROR"; $errorCount++ }
-            } elseif ($action.ActionType -eq "Video" -and ($action.Type -eq "VideoConversion")) {
-                $vinfo = Get-VideoStreamInfo -FFMpegExePath $FFmpegPath -InputPath $action.OriginalPath
-                $isHDR = Test-IsHDR -s $vinfo
-
-                # Optional re-mux if keeping HDR and input is already MP4 HEVC
-                $extIn = [IO.Path]::GetExtension($action.OriginalPath).ToLowerInvariant()
-                if ($extIn -eq ".mp4" -and $isHDR -and $KeepHDR) {
-                    $ffmpegArgs = @("-i", "`"$($action.OriginalPath)`"", "-c", "copy", "-y", "`"$($action.NewPath)`"")
-                } elseif ($isHDR -and $KeepHDR) {
-                    # Keep HDR: HEVC 10-bit
-                    $extra = @()
-                    if ($UpscaleWidth -gt 0) { $extra += "scale=w=$UpscaleWidth:h=-2:flags=lanczos" }
-                    if ($Sharpen) { $extra += "unsharp=5:5:0.8:5:5:0.0" }
-                    $ffmpegArgs = @("-i", "`"$($action.OriginalPath)`"")
-                    if ($extra.Count -gt 0) { $ffmpegArgs += @("-vf", "`"$($extra -join ',')`"") }
-                    $ffmpegArgs += @(
-                        "-c:v", "libx265",
-                        "-pix_fmt", "yuv420p10le",
-                        "-tag:v", "hvc1",
-                        "-crf", "$($Q.VideoCRF)",
-                        "-preset", "$($Q.VideoPreset)",
-                        "-c:a", "copy",
-                        "-y", "`"$($action.NewPath)`""
-                    )
-                } elseif ($isHDR) {
-                    # HDR -> SDR BT.709 for x264
-                    $vf = "zscale=transferin=arib-std-b67:primariesin=bt2020:matrixin=bt2020nc," +
-                    "zscale=transfer=linear,tonemap=hable," +
-                    "zscale=transfer=bt709:primaries=bt709:matrix=bt709,format=yuv420p"
-                    if ($vinfo.color_transfer -match 'smpte2084|pq') { $vf = $vf -replace 'arib-std-b67', 'smpte2084' }
-                    $extras = @()
-                    if ($UpscaleWidth -gt 0) { $extras += "scale=w=$UpscaleWidth:h=-2:flags=lanczos" }
-                    if ($Sharpen) { $extras += "unsharp=5:5:0.8:5:5:0.0" }
-                    if ($extras.Count -gt 0) { $vf = "$vf," + ($extras -join ',') }
-
-                    $ffmpegArgs = @(
-                        "-i", "`"$($action.OriginalPath)`"",
-                        "-vf", "`"$vf`"",
-                        "-c:v", "libx264", "-crf", "$($Q.VideoCRF)", "-preset", "$($Q.VideoPreset)",
-                        "-pix_fmt", "yuv420p",
-                        "-colorspace", "bt709", "-color_primaries", "bt709", "-color_trc", "bt709",
-                        "-c:a", "aac", "-b:a", "$($Q.AudioBitrate)",
-                        "-y", "`"$($action.NewPath)`""
-                    )
-                } else {
-                    # SDR -> plain H.264
-                    $extra = @()
-                    if ($UpscaleWidth -gt 0) { $extra += "scale=w=$UpscaleWidth:h=-2:flags=lanczos" }
-                    if ($Sharpen) { $extra += "unsharp=5:5:0.8:5:5:0.0" }
-                    $ffmpegArgs = @("-i", "`"$($action.OriginalPath)`"")
-                    if ($extra.Count -gt 0) { $ffmpegArgs += @("-vf", "`"$($extra -join ',')`"") }
-                    $ffmpegArgs += @(
-                        "-c:v", "libx264", "-crf", "$($Q.VideoCRF)", "-preset", "$($Q.VideoPreset)",
-                        "-c:a", "aac", "-b:a", "$($Q.AudioBitrate)",
-                        "-y", "`"$($action.NewPath)`""
-                    )
-                }
-
-                $res = Invoke-FFmpegConversion -FFMpegExePath $FFmpegPath -Arguments $ffmpegArgs -OriginalFilePath $action.OriginalPath
-                $conversionSuccessful = $res.Success
-                if ($conversionSuccessful) { Write-Log "  Video conversion completed." "INFO"; $convertedCount++ }
-                else { Write-Log "ERROR: Video conversion failed. Exit $($res.ExitCode)" "ERROR"; Write-Log "FFmpeg Output: $($res.FFMpegOutput)" "ERROR"; $errorCount++ }
-            } elseif ($action.ActionType -eq "Audio" -and ($action.Type -eq "AudioConversion")) {
-                $ffmpegArgs = @(
-                    "-i", "`"$($action.OriginalPath)`"",
-                    "-c:a", "libmp3lame",
-                    "-b:a", "$($Q.AudioBitrate)",
-                    "-y", "`"$($action.NewPath)`""
-                )
-                $res = Invoke-FFmpegConversion -FFMpegExePath $FFmpegPath -Arguments $ffmpegArgs -OriginalFilePath $action.OriginalPath
-                $conversionSuccessful = $res.Success
-                if ($conversionSuccessful) { Write-Log "  Audio conversion completed." "INFO"; $convertedCount++ }
-                else { Write-Log "ERROR: Audio conversion failed. Exit $($res.ExitCode)" "ERROR"; Write-Log "FFmpeg Output: $($res.FFMpegOutput)" "ERROR"; $errorCount++ }
+        
+        $success = $false
+        
+        # Handle rename operations
+        if ($action.Type -match "Rename$") {
+            $success = Invoke-FileRename -Action $action
+            if ($success) {
+                $renamedCount++
+            } else {
+                $errorCount++
             }
-        } catch {
-            Write-Log "CRITICAL ERROR during '$($action.OriginalPath)': $($_.Exception.Message)" "ERROR"; $errorCount++; $conversionSuccessful = $false
         }
-
-        # Manage original only after successful conversion and when path differs
-        if ($conversionSuccessful -and ($action.OriginalPath.ToLower() -ne $action.NewPath.ToLower())) {
-            Read-OriginalFile -OriginalFilePath $action.OriginalPath -MoveOriginals:$MoveOriginals -SourceBaseDir $SourcePath | Out-Null
-        } elseif ($conversionSuccessful) {
-            Write-Log "  Original equals target; nothing to remove/move." "INFO"
+        # Handle conversion operations
+        elseif ($action.Type -match "Conversion$") {
+            if ($RenameOnly) {
+                Write-Log "  Skipped: RenameOnly mode." "INFO"
+                $skippedCount++
+                continue
+            }
+            
+            $success = Invoke-MediaConversion -Action $action -QualitySettings $qualitySettings -FFmpegPath $FFmpegPath -UpscaleWidth $UpscaleWidth -Sharpen:$Sharpen -KeepHDR:$KeepHDR
+            
+            if ($success) {
+                $convertedCount++
+                
+                # Manage original file only after successful conversion and when paths differ
+                if ($action.OriginalPath.ToLower() -ne $action.NewPath.ToLower()) {
+                    Remove-OriginalFile -OriginalFilePath $action.OriginalPath -MoveOriginals:$MoveOriginals -SourceBaseDir $SourcePath | Out-Null
+                } else {
+                    Write-Log "  Original equals target; nothing to remove/move." "INFO"
+                }
+            } else {
+                $errorCount++
+            }
         }
     }
-
+    
     Write-Progress -Activity "Processing Media Files" -Completed -Status "All files processed." -Id 1
 }
 
-# Summary & cleanup
+# Summary and cleanup
 Write-Log "`n--- Script Execution Summary ---" "INFO"
 Write-Log "Total Files Examined: $($pendingActions.Count)" "INFO"
 Write-Log "Files Converted: $convertedCount" "INFO"
@@ -485,7 +741,13 @@ Write-Log "Files with Errors: $errorCount" "INFO"
 Write-Log "------------------------------" "INFO"
 Write-Log "Finished at $(Get-Date)." "INFO"
 
-if ($script:LogFileStream) {
-    try { $script:LogFileStream.Close(); $script:LogFileStream.Dispose(); $script:LogFileStream = $null; Write-Host "Log saved to '$LogFile'." -ForegroundColor Green }
-    catch { Write-Host "WARNING: Error closing log file: $($_.Exception.Message)" -ForegroundColor Yellow }
+if ($script:logFileStream) {
+    try {
+        $script:logFileStream.Close()
+        $script:logFileStream.Dispose()
+        $script:logFileStream = $null
+        Write-Host "Log saved to '$LogFile'." -ForegroundColor Green
+    } catch {
+        Write-Host "WARNING: Error closing log file: $($_.Exception.Message)" -ForegroundColor Yellow
+    }
 }
