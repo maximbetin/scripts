@@ -46,15 +46,15 @@
     Useful for testing and previewing operations before committing to changes.
 
 .EXAMPLE
-    .\Convert-MediaFiles-Fixed.ps1 -WhatIf
+    .\Convert-MediaFiles.ps1 -WhatIf
     Preview what would happen when processing files in current directory
 
 .EXAMPLE
-    .\Convert-MediaFiles-Fixed.ps1 -SourcePath "C:\Media" -DestinationPath "C:\Organized" -Recurse
+    .\Convert-MediaFiles.ps1 -SourcePath "C:\Media" -DestinationPath "C:\Organized" -Recurse
     Convert all media files from C:\Media and subdirectories to C:\Organized with preserved structure
 
 .EXAMPLE
-    .\Convert-MediaFiles-Fixed.ps1 -SourcePath "C:\Photos" -Rename -Force
+    .\Convert-MediaFiles.ps1 -SourcePath "C:\Photos" -Rename -Force
     Rename all correctly formatted files in C:\Photos to standard naming without confirmation
 
 .NOTES
@@ -342,6 +342,60 @@ if (-not $cap.SupportsHeifDemuxer) {
     if (-not $script:SupportsAvif) { Write-Message "Warning: AVIF decoding not available in FFmpeg. AVIF files will be skipped." -Type Warning }
 }
 
+# Helper functions for cohesive processing
+function New-Directory {
+    param(
+        [Parameter(Mandatory)]
+        [string]$Path
+    )
+    if (-not (Test-Path -LiteralPath $Path)) {
+        New-Item -Path $Path -ItemType Directory -Force -ErrorAction Stop | Out-Null
+    }
+}
+
+function Get-ExistingOutputPath {
+    param(
+        [Parameter(Mandatory)]
+        [hashtable]$Action
+    )
+    if ($Action.Type -eq "Rename") { return $null }
+
+    $pathsToCheck = @($Action.NewPath, $Action.BasePath) | Where-Object { $_ }
+    foreach ($p in $pathsToCheck) {
+        if ((Test-Path -LiteralPath $p) -and ((Get-Item -LiteralPath $p).Length -gt 0)) {
+            return $p
+        }
+    }
+
+    $dir = Split-Path $Action.NewPath -Parent
+    $leafBase = [System.IO.Path]::GetFileNameWithoutExtension($Action.BasePath)
+    $ext = [System.IO.Path]::GetExtension($Action.BasePath)
+    $patternPath = Join-Path $dir ("{0}*{1}" -f $leafBase, $ext)
+    $existing = Get-ChildItem -Path $patternPath -File -ErrorAction SilentlyContinue | Where-Object { $_.Length -gt 0 } | Select-Object -First 1
+    if ($existing) { return $existing.FullName }
+
+    return $null
+}
+
+function Get-FFmpegArgs {
+    param(
+        [Parameter(Mandatory)]
+        [string]$ActionType,
+        [Parameter(Mandatory)]
+        [string]$InputPath,
+        [Parameter(Mandatory)]
+        [string]$OutputPath
+    )
+    $ffArgs = @("-y", "-hide_banner", "-loglevel", "error", "-i", $InputPath)
+    switch -Regex ($ActionType) {
+        "ImageConversion" { $ffArgs += @("-vf", "auto-orient", "-q:v", "2", $OutputPath) }
+        "VideoConversion" { $ffArgs += @("-c:v", "libx264", "-crf", "23", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "128k", "-movflags", "+faststart", $OutputPath) }
+        "AudioConversion" { $ffArgs += @("-c:a", "libmp3lame", "-b:a", "320k", $OutputPath) }
+        default { $ffArgs += @($OutputPath) }
+    }
+    return $ffArgs
+}
+
 $actions = Get-ProcessingActions -SourcePath $SourcePath -DestinationPath $DestinationPath -Recurse:$Recurse -Rename:$Rename
 
 Write-Message "Media Conversion - Plan" -Type Section
@@ -398,46 +452,30 @@ $errorCount = 0
 
 if ($PSVersionTable.PSVersion.Major -ge 7 -and $MaxParallel -gt 1) {
     Write-Host "Processing in parallel with up to $MaxParallel workers..." -ForegroundColor Cyan
-    $sync = [hashtable]::Synchronized(@{ Errors = 0 })
     $ffmpegPathLocal = $script:ffmpegPath
     $noDeleteLocal = [bool]$NoDelete
+    $fnEnsureDir = ${function:New-Directory}
+    $fnGetExistingOutput = ${function:Get-ExistingOutputPath}
+    $fnGetFfmpegArgs = ${function:Get-FFmpegArgs}
 
-    $actions | ForEach-Object -Parallel {
-        param($ffmpegPathLocal, $noDeleteLocal)
+    $results = $actions | ForEach-Object -Parallel {
+        param($ffmpegPathLocal, $noDeleteLocal, $fnEnsureDir, $fnGetExistingOutput, $fnGetFfmpegArgs)
         $action = $_
         try {
             # Ensure output directory exists
             $outputDir = Split-Path $action.NewPath -Parent
-            if (-not (Test-Path -LiteralPath $outputDir)) {
-                New-Item -Path $outputDir -ItemType Directory -Force -ErrorAction Stop | Out-Null
-            }
+            & $fnEnsureDir -Path $outputDir
 
             if ($action.Type -eq "Rename") {
                 Move-Item -LiteralPath $action.OriginalPath -Destination $action.NewPath -Force -ErrorAction Stop
             } else {
-                # Resume: skip if any matching BaseName[_N] output exists and is non-empty
-                $dir = Split-Path $action.NewPath -Parent
-                $leafBase = [System.IO.Path]::GetFileNameWithoutExtension($action.BasePath)
-                $ext = [System.IO.Path]::GetExtension($action.BasePath)
-                $patternPath = Join-Path $dir ("{0}*{1}" -f $leafBase, $ext)
-                $existing = Get-ChildItem -Path $patternPath -File -ErrorAction SilentlyContinue | Where-Object { $_.Length -gt 0 } | Select-Object -First 1
-                if ($existing) { return }
+                # Resume: skip if output already exists
+                $existingOutput = & $fnGetExistingOutput -Action $action
+                if ($existingOutput) { [pscustomobject]@{ Success = $true; Skipped = $true; Type = $action.Type; OriginalPath = $action.OriginalPath; OutputPath = $existingOutput }; return }
 
                 $inputPath = $action.OriginalPath
                 $outputPath = $action.NewPath
-                $ffmpegArgs = @("-y", "-hide_banner", "-loglevel", "error", "-i", $inputPath)
-
-                switch -Regex ($action.Type) {
-                    "ImageConversion" {
-                        $ffmpegArgs += @("-vf", "auto-orient", "-q:v", "2", $outputPath)
-                    }
-                    "VideoConversion" {
-                        $ffmpegArgs += @("-c:v", "libx264", "-crf", "23", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "128k", "-movflags", "+faststart", $outputPath)
-                    }
-                    "AudioConversion" {
-                        $ffmpegArgs += @("-c:a", "libmp3lame", "-b:a", "320k", $outputPath)
-                    }
-                }
+                $ffmpegArgs = & $fnGetFfmpegArgs -ActionType $action.Type -InputPath $inputPath -OutputPath $outputPath
 
                 & $ffmpegPathLocal @ffmpegArgs
                 $exitCode = $LASTEXITCODE
@@ -446,19 +484,21 @@ if ($PSVersionTable.PSVersion.Major -ge 7 -and $MaxParallel -gt 1) {
                     if (-not $noDeleteLocal) {
                         Remove-Item -LiteralPath $action.OriginalPath -Force -ErrorAction Stop
                     }
+                    [pscustomobject]@{ Success = $true; Type = $action.Type; OriginalPath = $action.OriginalPath; OutputPath = $outputPath }
+                    return
                 } else {
-                    [System.Threading.Monitor]::Enter($using:sync)
-                    try { $using:sync.Errors = [int]$using:sync.Errors + 1 } finally { [System.Threading.Monitor]::Exit($using:sync) }
+                    [pscustomobject]@{ Success = $false; Type = $action.Type; OriginalPath = $action.OriginalPath; OutputPath = $outputPath; ExitCode = $exitCode }
+                    return
                 }
             }
         } catch {
-            [System.Threading.Monitor]::Enter($using:sync)
-            try { $using:sync.Errors = [int]$using:sync.Errors + 1 } finally { [System.Threading.Monitor]::Exit($using:sync) }
+            [pscustomobject]@{ Success = $false; Type = $action.Type; OriginalPath = $action.OriginalPath; Message = $_.Exception.Message }
+            return
         }
-    } -ThrottleLimit $MaxParallel -ArgumentList $ffmpegPathLocal, $noDeleteLocal
+    } -ThrottleLimit $MaxParallel -ArgumentList $ffmpegPathLocal, $noDeleteLocal, $fnEnsureDir, $fnGetExistingOutput, $fnGetFfmpegArgs
 
     $processedCount = $actions.Count
-    $errorCount = $sync.Errors
+    $errorCount = (@($results) | Where-Object { -not $_.Success }).Count
 } else {
     foreach ($action in $actions) {
         $processedCount++
@@ -471,50 +511,26 @@ if ($PSVersionTable.PSVersion.Major -ge 7 -and $MaxParallel -gt 1) {
         try {
             # Ensure output directory exists
             $outputDir = Split-Path $action.NewPath -Parent
-            if (-not (Test-Path -LiteralPath $outputDir)) {
-                New-Item -Path $outputDir -ItemType Directory -Force -ErrorAction Stop | Out-Null
-            }
+            New-Directory -Path $outputDir
             
             if ($action.Type -eq "Rename") {
                 Write-Host "[$processedCount/$($actions.Count)] Renaming: $fileName" -ForegroundColor Cyan
                 Move-Item -LiteralPath $action.OriginalPath -Destination $action.NewPath -Force -ErrorAction Stop
                 Write-Message "Renamed successfully" -Type Success
             } else {
-                # Resume: skip if output already exists and non-empty (check NewPath then BasePath)
-                $existing = @($action.NewPath, $action.BasePath) | Where-Object { $_ -and (Test-Path -LiteralPath $_) -and ((Get-Item -LiteralPath $_).Length -gt 0) } | Select-Object -First 1
+                # Resume: skip if output already exists
+                $existing = Get-ExistingOutputPath -Action $action
                 if ($existing) {
                     Write-Host "[$processedCount/$($actions.Count)] Skipping (already exists): $(Split-Path $existing -Leaf)" -ForegroundColor Yellow
                     continue
                 }
 
-                # Resume: skip if any matching BaseName[_N] output exists and is non-empty
-                $dir = Split-Path $action.NewPath -Parent
-                $leafBase = [System.IO.Path]::GetFileNameWithoutExtension($action.BasePath)
-                $ext = [System.IO.Path]::GetExtension($action.BasePath)
-                $patternPath = Join-Path $dir ("{0}*{1}" -f $leafBase, $ext)
-                $existing = Get-ChildItem -Path $patternPath -File -ErrorAction SilentlyContinue | Where-Object { $_.Length -gt 0 } | Select-Object -First 1
-                if ($existing) {
-                    Write-Host "[$processedCount/$($actions.Count)] Skipping (already exists): $($existing.Name)" -ForegroundColor Yellow
-                    continue
-                }
                 Write-Host "[$processedCount/$($actions.Count)] Converting: $fileName" -ForegroundColor Cyan
                 
                 # Build FFmpeg command based on media type
                 $inputPath = $action.OriginalPath
                 $outputPath = $action.NewPath
-                $ffmpegArgs = @("-y", "-hide_banner", "-loglevel", "error", "-i", $inputPath)
-                
-                switch -Regex ($action.Type) {
-                    "ImageConversion" {
-                        $ffmpegArgs += @("-vf", "auto-orient", "-q:v", "2", $outputPath)
-                    }
-                    "VideoConversion" {
-                        $ffmpegArgs += @("-c:v", "libx264", "-crf", "23", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "128k", "-movflags", "+faststart", $outputPath)
-                    }
-                    "AudioConversion" {
-                        $ffmpegArgs += @("-c:a", "libmp3lame", "-b:a", "320k", $outputPath)
-                    }
-                }
+                $ffmpegArgs = Get-FFmpegArgs -ActionType $action.Type -InputPath $inputPath -OutputPath $outputPath
                 
                 # Execute FFmpeg (direct invocation ensures proper quoting of args)
                 & $script:ffmpegPath @ffmpegArgs
@@ -555,5 +571,3 @@ if ($errorCount -gt 0) {
 } else {
     Write-Host "All files processed successfully!" -ForegroundColor Green
 }
-
-# Remove duplicate late capability block if present
