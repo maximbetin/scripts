@@ -73,25 +73,20 @@
     
     Author: Media Conversion Script
     Version: 2.0
-    Last Updated: 2024
+    Last Updated: 2025
 #>
 param(
     [Parameter(Mandatory = $true)]
     [ValidateScript({ Test-Path $_ -PathType Container })]
     [string]$SourcePath,
-
     [Parameter(Mandatory = $false)]
     [string]$DestinationPath,
-
     [Parameter(Mandatory = $false)]
     [switch]$Recurse,
-
     [Parameter(Mandatory = $false)]
     [switch]$Rename,
-
     [Parameter(Mandatory = $false)]
     [switch]$Force,
-
     [Parameter(Mandatory = $false)]
     [switch]$WhatIf
 )
@@ -152,9 +147,24 @@ function Invoke-FFmpegConversion {
     return $result
 }
 
+function Save-Checkpoint {
+    param(
+        [Parameter(Mandatory)]
+        [hashtable]$CheckpointData,
+        [Parameter(Mandatory)]
+        [string]$CheckpointFile
+    )
+    
+    try {
+        $CheckpointData | ConvertTo-Json -Depth 10 | Set-Content $CheckpointFile -ErrorAction SilentlyContinue
+    } catch {
+        # Silently continue if checkpoint save fails
+    }
+}
+
 function Get-FFmpegArguments {
     param(
-        [Parameter(Mandatory = $true)]
+        [Parameter(Mandatory)]
         [hashtable]$Action
     )
 
@@ -203,32 +213,37 @@ function Get-FFmpegArguments {
     }
 }
 
+function New-DirectoryIfNotExists {
+    param([Parameter(Mandatory)][string]$Path)
+    
+    $directory = Split-Path -Path $Path -Parent
+    if (-not (Test-Path $directory)) {
+        New-Item -ItemType Directory -Path $directory -Force | Out-Null
+    }
+}
+
 function Invoke-MediaConversion {
-    param (
-        [Parameter(Mandatory = $true)]
+    param(
+        [Parameter(Mandatory)]
         [hashtable]$Action,
-        [Parameter(Mandatory = $true)]
+        [Parameter(Mandatory)]
         [string]$FFmpegPath
     )
 
     $ffmpegArgs = Get-FFmpegArguments -Action $Action
-
     if ($null -eq $ffmpegArgs) {
-        Write-Host "ERROR: Unknown action type '$($Action.Type)' for file '$($Action.OriginalPath)'" -ForegroundColor Red
+        Write-Message "ERROR: Unknown action type '$($Action.Type)' for file '$($Action.OriginalPath)'" -Type Error
         return $false
     }
 
-    # Ensure destination directory exists before running ffmpeg
-    $destDir = Split-Path -Path $Action.NewPath -Parent
-    if (-not (Test-Path $destDir)) { New-Item -ItemType Directory -Path $destDir | Out-Null }
-
+    New-DirectoryIfNotExists -Path $Action.NewPath
     $result = Invoke-FFmpegConversion -FFmpegExePath $FFmpegPath -Arguments $ffmpegArgs -OriginalFilePath $Action.OriginalPath
 
     if ($result.Success) {
         Write-Host "  Conversion completed." -ForegroundColor Green
         return $true
     } else {
-        Write-Host "ERROR: Conversion failed. Exit $($result.ExitCode)" -ForegroundColor Red
+        Write-Message "ERROR: Conversion failed. Exit $($result.ExitCode)" -Type Error
         Write-Host "FFmpeg Output: $($result.FFmpegOutput)" -ForegroundColor Red
         return $false
     }
@@ -241,43 +256,34 @@ function Invoke-FileRename {
     )
     
     try {
-        $destDir = Split-Path -Path $Action.NewPath -Parent
-        if (-not (Test-Path $destDir)) {
-            New-Item -ItemType Directory -Path $destDir | Out-Null
-        }
+        New-DirectoryIfNotExists -Path $Action.NewPath
         Move-Item -LiteralPath $Action.OriginalPath -Destination $Action.NewPath
         Write-Host "  File renamed (no re-encode)." -ForegroundColor Green
         return $true
     } catch {
-        Write-Host "ERROR: Rename failed: $($_.Exception.Message)" -ForegroundColor Red
+        Write-Message "ERROR: Rename failed: $($_.Exception.Message)" -Type Error
         return $false
     }
 }
 
-function Write-Section {
-    param([Parameter(Mandatory)][string]$Title)
-    Write-Host ""
-    Write-Host "==== $Title ====" -ForegroundColor Magenta
-}
-
-function Write-Info {
-    param([Parameter(Mandatory)][string]$Message)
-    Write-Host "  $Message" -ForegroundColor Gray
-}
-
-function Write-Success {
-    param([Parameter(Mandatory)][string]$Message)
-    Write-Host "  $Message" -ForegroundColor Green
-}
-
-function Write-Warning {
-    param([Parameter(Mandatory)][string]$Message)
-    Write-Host "  $Message" -ForegroundColor Yellow
-}
-
-function Write-Error {
-    param([Parameter(Mandatory)][string]$Message)
-    Write-Host "  $Message" -ForegroundColor Red
+function Write-Message {
+    param(
+        [Parameter(Mandatory)]
+        [string]$Message,
+        [ValidateSet('Section', 'Info', 'Success', 'Warning', 'Error')]
+        [string]$Type = 'Info'
+    )
+    
+    switch ($Type) {
+        'Section' {
+            Write-Host ""
+            Write-Host "==== $Message ====" -ForegroundColor Magenta
+        }
+        'Info' { Write-Host "  $Message" -ForegroundColor Gray }
+        'Success' { Write-Host "  $Message" -ForegroundColor Green }
+        'Warning' { Write-Host "  $Message" -ForegroundColor Yellow }
+        'Error' { Write-Host "  $Message" -ForegroundColor Red }
+    }
 }
 
 function Get-ShortPath {
@@ -445,12 +451,12 @@ if ($DestinationPath -and -not (Test-Path (Split-Path $DestinationPath -Parent))
 
 $actionsToProcess = Get-ProcessingActions -SourcePath $SourcePath -DestinationPath $DestinationPath -Recurse:$Recurse -Rename:$Rename
 
-Write-Section "Media Conversion - Plan"
-Write-Info "Source: $SourcePath"
-Write-Info "Destination: $(if ([string]::IsNullOrEmpty($DestinationPath)) { '(in-place)' } else { $DestinationPath })"
-Write-Info "Recurse: $([bool]$Recurse)"
-Write-Info "Rename non-standard: $([bool]$Rename)"
-Write-Info "Force: $([bool]$Force)"
+Write-Message "Media Conversion - Plan" -Type Section
+Write-Message "Source: $SourcePath" -Type Info
+Write-Message "Destination: $(if ([string]::IsNullOrEmpty($DestinationPath)) { '(in-place)' } else { $DestinationPath })" -Type Info
+Write-Message "Recurse: $([bool]$Recurse)" -Type Info
+Write-Message "Rename non-standard: $([bool]$Rename)" -Type Info
+Write-Message "Force: $([bool]$Force)" -Type Info
 Write-Host ""
 Write-Host "Scanning files in '$SourcePath'..." -ForegroundColor Cyan
 
@@ -464,7 +470,7 @@ $statistics.Total = $actionsToProcess.Count
 
 # Handle WhatIf mode
 if ($WhatIf) {
-    Write-Section "What-If Mode: Planned Actions ($($actionsToProcess.Count))"
+    Write-Message "What-If Mode: Planned Actions ($($actionsToProcess.Count))" -Type Section
     $i = 0
     foreach ($a in $actionsToProcess) {
         $i++
@@ -477,15 +483,15 @@ if ($WhatIf) {
             $toExt = [System.IO.Path]::GetExtension($a.NewPath)
             Write-Host ("[{0,3}] WOULD CONVERT {1} -> {2}" -f $i, $fromExt, $toExt) -ForegroundColor Cyan
         }
-        Write-Info "From: $from"
-        Write-Info "  To: $to"
+        Write-Message "From: $from" -Type Info
+        Write-Message "  To: $to" -Type Info
     }
     Write-Host "`nWhat-If mode completed. No files were modified." -ForegroundColor Green
     exit 0
 }
 
 if (!$Force) {
-    Write-Section "Planned Actions ($($actionsToProcess.Count))"
+    Write-Message "Planned Actions ($($actionsToProcess.Count))" -Type Section
     $i = 0
     foreach ($a in $actionsToProcess) {
         $i++
@@ -498,60 +504,53 @@ if (!$Force) {
             $toExt = [System.IO.Path]::GetExtension($a.NewPath)
             Write-Host ("[{0,3}] Convert {1} -> {2}" -f $i, $fromExt, $toExt) -ForegroundColor Yellow
         }
-        Write-Info "From: $from"
-        Write-Info "  To: $to"
+        Write-Message "From: $from" -Type Info
+        Write-Message "  To: $to" -Type Info
     }
     $response = Read-Host "Proceed with $($actionsToProcess.Count) actions? [y/N]"
     if (@('Y', 'YES') -notcontains ($response.Trim().ToUpper())) {
-        Write-Warning "Operation cancelled by user."
+        Write-Message "Operation cancelled by user." -Type Warning
         exit 0
     }
 }
 
-$total = $actionsToProcess.Count
-$current = 0
-# Start stopwatch for elapsed time tracking
+$totalActions = $actionsToProcess.Count
+$currentAction = 0
 $sw = [System.Diagnostics.Stopwatch]::StartNew()
 
-# Create checkpoint data
 $checkpointData = @{
     SourcePath       = $SourcePath
     DestinationPath  = $DestinationPath
-    TotalActions     = $total
+    TotalActions     = $totalActions
     ProcessedActions = @()
     Timestamp        = Get-Date
 }
 
 foreach ($action in $actionsToProcess) {
-    $current++
+    $currentAction++
     
-    # Update progress
-    $percentComplete = [math]::Round(($current / $total) * 100, 1)
-    Write-Progress -Activity "Processing Media Files" -Status "$current of $total files ($percentComplete%)" -PercentComplete $percentComplete
+    $percentComplete = [math]::Round(($currentAction / $totalActions) * 100, 1)
+    Write-Progress -Activity "Processing Media Files" -Status "$currentAction of $totalActions files ($percentComplete%)" -PercentComplete $percentComplete
     
-    Write-Host "--- ($current/$total) Executing: $($action.Type) on '$($action.OriginalPath)' ---" -ForegroundColor Cyan
+    Write-Host "--- ($currentAction/$totalActions) Executing: $($action.Type) on '$($action.OriginalPath)' ---" -ForegroundColor Cyan
 
     $success = $false
     $actionStartTime = Get-Date
     
     try {
-        if ($action.Type -eq "Rename") {
-            $success = Invoke-FileRename -Action $action
-            if ($success) { 
-                $statistics.Renamed++ 
+        $success = if ($action.Type -eq "Rename") {
+            $result = Invoke-FileRename -Action $action
+            if ($result) { 
+                $statistics.Renamed++
                 Write-Host "  ✓ File renamed successfully" -ForegroundColor Green
-            } else { 
-                $statistics.Failed++
-                $failedOperations += @{File = $action.OriginalPath; Error = "Rename operation failed"; Time = $actionStartTime }
             }
+            $result
         } else {
-            $success = Invoke-MediaConversion -Action $action -FFmpegPath $FFmpegPath
-            if ($success) {
-                # Count conversion success
+            $result = Invoke-MediaConversion -Action $action -FFmpegPath $FFmpegPath
+            if ($result) {
                 $statistics.Converted++
                 Write-Host "  ✓ Conversion completed successfully" -ForegroundColor Green
                 
-                # Attempt to remove original file with error handling
                 try {
                     Remove-Item -LiteralPath $action.OriginalPath -ErrorAction Stop
                     Write-Host "  ✓ Removed original file" -ForegroundColor Green
@@ -560,26 +559,24 @@ foreach ($action in $actionsToProcess) {
                     Write-Host "  ⚠ WARNING: Failed to delete original: $($_.Exception.Message)" -ForegroundColor Yellow
                     Write-Host "    Original file remains at: $($action.OriginalPath)" -ForegroundColor Gray
                 }
-            } else { 
-                $statistics.Failed++
-                $failedOperations += @{File = $action.OriginalPath; Error = "Conversion failed"; Time = $actionStartTime }
             }
+            $result
         }
         
-        # Update checkpoint with processed action
+        if (-not $success) {
+            $statistics.Failed++
+            $errorMsg = if ($action.Type -eq "Rename") { "Rename operation failed" } else { "Conversion failed" }
+            $failedOperations += @{File = $action.OriginalPath; Error = $errorMsg; Time = $actionStartTime }
+        }
+        
         $checkpointData.ProcessedActions += @{
             Action      = $action
             Success     = $success
             ProcessedAt = Get-Date
         }
         
-        # Save checkpoint every 5 files or on failure
-        if (($current % 5 -eq 0) -or (-not $success)) {
-            try {
-                $checkpointData | ConvertTo-Json -Depth 10 | Set-Content $checkpointFile -ErrorAction SilentlyContinue
-            } catch {
-                # Silently continue if checkpoint save fails
-            }
+        if (($currentAction % 5 -eq 0) -or (-not $success)) {
+            Save-Checkpoint -CheckpointData $checkpointData -CheckpointFile $checkpointFile
         }
         
     } catch {
@@ -598,11 +595,11 @@ if ($statistics.Failed -eq 0 -and (Test-Path $checkpointFile)) {
     Remove-Item $checkpointFile -ErrorAction SilentlyContinue
 }
 
-Write-Section "Summary"
-Write-Info "Total actions: $($statistics.Total)"
-Write-Success "Converted: $($statistics.Converted)"
-Write-Success "Renamed: $($statistics.Renamed)"
-Write-Success "Deleted originals: $($statistics.Deleted)"
+Write-Message "Summary" -Type Section
+Write-Message "Total actions: $($statistics.Total)" -Type Info
+Write-Message "Converted: $($statistics.Converted)" -Type Success
+Write-Message "Renamed: $($statistics.Renamed)" -Type Success
+Write-Message "Deleted originals: $($statistics.Deleted)" -Type Success
 
 if ($statistics.Failed -gt 0) {
     Write-Host "Failed: $($statistics.Failed)" -ForegroundColor Red
@@ -611,7 +608,7 @@ if ($statistics.Failed -gt 0) {
     $index = 0
     foreach ($failure in $failedOperations) {
         $index++
-        Write-Error "[{0,3}] {1}" -f $index, (Get-ShortPath -InputPath $failure.File -Max 80)
+        Write-Message "[{0,3}] {1}" -f $index, (Get-ShortPath -InputPath $failure.File -Max 80) -Type Error
         Write-Host "      Error: $($failure.Error)" -ForegroundColor DarkRed
         Write-Host "      Time: $($failure.Time.ToString('yyyy-MM-dd HH:mm:ss'))" -ForegroundColor Gray
     }
@@ -620,7 +617,7 @@ if ($statistics.Failed -gt 0) {
         Write-Host "`nCheckpoint file saved for potential resume: $checkpointFile" -ForegroundColor Yellow
     }
 } else {
-    Write-Success "All operations completed successfully! 🎉"
+    Write-Message "All operations completed successfully! 🎉" -Type Success
 }
 
-Write-Info "Elapsed: $($sw.Elapsed.ToString('c'))"
+Write-Message "Elapsed: $($sw.Elapsed.ToString('c'))" -Type Info
