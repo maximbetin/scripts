@@ -18,12 +18,10 @@
 
 .PARAMETER SourcePath
     The source directory to scan for media files. Must be a valid existing path.
-    Example: "C:\Photos\Vacation2024"
 
 .PARAMETER DestinationPath
     The output directory for processed files. If not specified, files are processed in-place.
     The script preserves the relative directory structure from the source.
-    Example: "C:\Organized\Media"
 
 .PARAMETER Recurse
     Process files recursively in all subdirectories. By default, only processes files
@@ -55,7 +53,7 @@
 
 .NOTES
     Requirements:
-    • FFmpeg must be installed and accessible (checks PATH, then falls back to WinGet location)
+    • FFmpeg must be installed and accessible
     • PowerShell 5.1 or later
     • Write permissions to source/destination directories
     
@@ -64,15 +62,8 @@
     • Videos: MP4, MOV, MKV, AVI, WMV → MP4 (H.264, AAC audio)
     • Audio: MP3, WAV, FLAC, M4A → MP3 (320kbps)
     
-    Safety Features:
-    • Confirmation prompt before processing (unless -Force)
-    • Progress tracking with percentage complete
-    • Comprehensive error handling and reporting
-    • Resume capability for interrupted operations
-    • Dry-run mode with -WhatIf parameter
-    
     Author: Media Conversion Script
-    Version: 2.0
+    Version: 2.1
     Last Updated: 2025
 #>
 param(
@@ -108,13 +99,11 @@ function Get-UniqueTimestampFileName {
     
     $timestamp = $OriginalFile.LastWriteTime.ToString("yyyyMMdd_HHmmss_fff")
     $baseName = "${Prefix}_$timestamp"
-    $proposedName = "$baseName$TargetExtension"
-    $newPath = Join-Path $OutputDirectory $proposedName
+    $newPath = Join-Path $OutputDirectory "$baseName$TargetExtension"
     
     $counter = 1
     while (Test-Path $newPath) {
-        $proposedName = "${baseName}_${counter}${TargetExtension}"
-        $newPath = Join-Path $OutputDirectory $proposedName
+        $newPath = Join-Path $OutputDirectory "${baseName}_${counter}${TargetExtension}"
         $counter++
     }
     
@@ -124,7 +113,7 @@ function Get-UniqueTimestampFileName {
 function Invoke-FFmpegConversion {
     param(
         [Parameter(Mandatory)]
-        [string]$FFmpegExePath,
+        [string]$FFmpegPath,
         
         [Parameter(Mandatory)]
         [string[]]$Arguments,
@@ -133,18 +122,18 @@ function Invoke-FFmpegConversion {
         [string]$OriginalFilePath
     )
     
-    Write-Host "  FFmpeg: `"$FFmpegExePath`" $($Arguments -join ' ')" -ForegroundColor Cyan
+    Write-Host "  FFmpeg: `"$FFmpegPath`" $($Arguments -join ' ')" -ForegroundColor Cyan
     $tempErrorFile = [System.IO.Path]::GetTempFileName()
-    $result = @{ Success = $false; FFmpegOutput = ""; ExitCode = -1 }
+    $result = @{ Success = $false; Output = ""; ExitCode = -1 }
     
     try {
-        $process = Start-Process -FilePath $FFmpegExePath -ArgumentList $Arguments -NoNewWindow -PassThru -Wait -RedirectStandardError $tempErrorFile
-        $result.FFmpegOutput = (Get-Content $tempErrorFile | Out-String).Trim()
+        $process = Start-Process -FilePath $FFmpegPath -ArgumentList $Arguments -NoNewWindow -PassThru -Wait -RedirectStandardError $tempErrorFile
+        $result.Output = (Get-Content $tempErrorFile -ErrorAction SilentlyContinue | Out-String).Trim()
         $result.ExitCode = $process.ExitCode
         $result.Success = ($result.ExitCode -eq 0)
     } catch {
-        Write-Host "ERROR: Start-Process failed for '$OriginalFilePath': $($_.Exception.Message)" -ForegroundColor Red
-        $result.FFmpegOutput = "PowerShell Start-Process Error: $($_.Exception.Message)"
+        Write-Host "ERROR: FFmpeg execution failed for '$OriginalFilePath': $($_.Exception.Message)" -ForegroundColor Red
+        $result.Output = "PowerShell execution error: $($_.Exception.Message)"
     } finally {
         Remove-Item $tempErrorFile -ErrorAction SilentlyContinue
     }
@@ -174,20 +163,23 @@ function Get-FFmpegArguments {
         [hashtable]$Action
     )
 
+    $inputPath = "`"$($Action.OriginalPath)`""
+    $outputPath = "`"$($Action.NewPath)`""
+
     switch ($Action.Type) {
         "ImageConversion" {
             @(
-                "-i", "`"$($Action.OriginalPath)`"",
+                "-i", $inputPath,
                 "-q:v", "2",                    # High JPEG quality (1-31, lower = better)
                 "-pix_fmt", "yuvj420p",         # Ensure compatible color space
                 "-map_metadata", "0",           # Preserve EXIF data
                 "-an", "-sn",                   # Remove audio/subtitle streams
-                "-y", "`"$($Action.NewPath)`""
+                "-y", $outputPath
             )
         }
         "VideoConversion" {
             @(
-                "-i", "`"$($Action.OriginalPath)`"",
+                "-i", $inputPath,
                 "-c:v", "libx264",
                 "-crf", "20",                   # Balanced quality for smaller files
                 "-preset", "faster",            # Better speed/quality balance
@@ -199,18 +191,18 @@ function Get-FFmpegArguments {
                 "-ac", "2",                     # Stereo audio
                 "-movflags", "+faststart",      # Web optimization
                 "-map_metadata", "0",           # Preserve metadata
-                "-y", "`"$($Action.NewPath)`""
+                "-y", $outputPath
             )
         }
         "AudioConversion" {
             @(
-                "-i", "`"$($Action.OriginalPath)`"",
+                "-i", $inputPath,
                 "-vn",                          # Remove video streams
                 "-c:a", "libmp3lame",
                 "-q:a", "0",                    # Variable bitrate, highest quality
                 "-map_metadata", "0",           # Preserve ID3 tags
                 "-write_id3v2", "1",            # Ensure ID3v2 tags
-                "-y", "`"$($Action.NewPath)`""
+                "-y", $outputPath
             )
         }
         default {
@@ -247,14 +239,16 @@ function Invoke-MediaConversion {
     }
 
     New-DirectoryIfNotExists -Path $Action.NewPath
-    $result = Invoke-FFmpegConversion -FFmpegExePath $FFmpegPath -Arguments $ffmpegArgs -OriginalFilePath $Action.OriginalPath
+    $result = Invoke-FFmpegConversion -FFmpegPath $FFmpegPath -Arguments $ffmpegArgs -OriginalFilePath $Action.OriginalPath
 
     if ($result.Success) {
         Write-Host "  Conversion completed." -ForegroundColor Green
         return $true
     } else {
-        Write-Message "ERROR: Conversion failed. Exit $($result.ExitCode)" -Type Error
-        Write-Host "FFmpeg Output: $($result.FFmpegOutput)" -ForegroundColor Red
+        Write-Message "ERROR: Conversion failed. Exit code: $($result.ExitCode)" -Type Error
+        if ($result.Output) {
+            Write-Host "FFmpeg Output: $($result.Output)" -ForegroundColor Red
+        }
         return $false
     }
 }
@@ -301,16 +295,17 @@ function Get-ShortPath {
         [Parameter(Mandatory)]
         [string]$InputPath,
         
-        [int]$Max = 100
+        [int]$MaxLength = 100
     )
     
-    if ([string]::IsNullOrEmpty($InputPath)) { return "" }
-    if ($InputPath.Length -le $Max) { return $InputPath }
+    if ([string]::IsNullOrEmpty($InputPath) -or $InputPath.Length -le $MaxLength) {
+        return $InputPath
+    }
     
-    $prefixLen = [Math]::Min([int][Math]::Round($Max / 2.5), $InputPath.Length)
-    $suffixLen = [Math]::Min($Max - $prefixLen - 3, [Math]::Max(0, $InputPath.Length - $prefixLen))
+    $prefixLength = [Math]::Floor($MaxLength / 2.5)
+    $suffixLength = $MaxLength - $prefixLength - 3
     
-    return ($InputPath.Substring(0, $prefixLen) + '...' + $InputPath.Substring($InputPath.Length - $suffixLen))
+    return $InputPath.Substring(0, $prefixLength) + '...' + $InputPath.Substring($InputPath.Length - $suffixLength)
 }
 
 function Get-MediaTypeConfiguration {
@@ -341,11 +336,7 @@ function Get-SourceFiles {
         [switch]$Recurse
     )
     
-    if ($Recurse) {
-        Get-ChildItem -Path $Path -Recurse -File
-    } else {
-        Get-ChildItem -Path $Path -File
-    }
+    Get-ChildItem -Path $Path -File -Recurse:$Recurse
 }
 
 function New-ProcessingAction {
@@ -361,30 +352,38 @@ function New-ProcessingAction {
         [switch]$Rename
     )
     
-    $ext = $File.Extension.ToLower()
-    $isCorrectFormat = ($ext -eq $MediaInfo.Target)
+    $extension = $File.Extension.ToLower()
+    $isCorrectFormat = ($extension -eq $MediaInfo.Target)
     $isStandardName = $File.Name -match '^(IMG|VID|AUD)_\d{8}_\d{6}_\d{3}(_\d+)?\.+'
     
-    $outputDir = if ([string]::IsNullOrEmpty($DestinationPath)) { 
+    $outputDirectory = if ([string]::IsNullOrEmpty($DestinationPath)) { 
         $File.DirectoryName 
     } else {
         $sourceFullPath = (Resolve-Path -LiteralPath $SourcePath).ProviderPath
-        $fileDirFullPath = (Resolve-Path -LiteralPath $File.DirectoryName).ProviderPath
-        $relPath = $fileDirFullPath.Substring($sourceFullPath.Length).TrimStart('\\')
-        Join-Path $DestinationPath $relPath
+        $fileDirectoryPath = (Resolve-Path -LiteralPath $File.DirectoryName).ProviderPath
+        $relativePath = $fileDirectoryPath.Substring($sourceFullPath.Length).TrimStart('\\')
+        Join-Path $DestinationPath $relativePath
     }
     
-    $newPath = Get-UniqueTimestampFileName -OriginalFile $File -TargetExtension $MediaInfo.Target -Prefix $MediaInfo.Prefix -OutputDirectory $outputDir
+    $newPath = Get-UniqueTimestampFileName -OriginalFile $File -TargetExtension $MediaInfo.Target -Prefix $MediaInfo.Prefix -OutputDirectory $outputDirectory
     
     if (-not $isCorrectFormat) {
-        return @{ Type = "$($MediaInfo.Type)Conversion"; OriginalPath = $File.FullName; NewPath = $newPath }
+        return @{ 
+            Type         = "$($MediaInfo.Type)Conversion"
+            OriginalPath = $File.FullName
+            NewPath      = $newPath 
+        }
     } elseif ($Rename -and -not $isStandardName) {
         $renamePath = if ([string]::IsNullOrEmpty($DestinationPath)) {
-            Join-Path $File.DirectoryName ($newPath | Split-Path -Leaf)
+            Join-Path $File.DirectoryName (Split-Path $newPath -Leaf)
         } else {
             $newPath
         }
-        return @{ Type = "Rename"; OriginalPath = $File.FullName; NewPath = $renamePath }
+        return @{ 
+            Type         = "Rename"
+            OriginalPath = $File.FullName
+            NewPath      = $renamePath 
+        }
     }
     
     return $null
@@ -404,19 +403,19 @@ function Get-ProcessingActions {
     
     $sourceFiles = Get-SourceFiles -Path $SourcePath -Recurse:$Recurse
     $mediaTypes = Get-MediaTypeConfiguration
-    $actionsToProcess = @()
+    $actions = @()
     
     foreach ($file in $sourceFiles) {
-        $ext = $file.Extension.ToLower()
-        if ($mediaTypes.ContainsKey($ext)) {
-            $action = New-ProcessingAction -File $file -MediaInfo $mediaTypes[$ext] -DestinationPath $DestinationPath -Rename:$Rename
+        $extension = $file.Extension.ToLower()
+        if ($mediaTypes.ContainsKey($extension)) {
+            $action = New-ProcessingAction -File $file -MediaInfo $mediaTypes[$extension] -DestinationPath $DestinationPath -Rename:$Rename
             if ($null -ne $action) {
-                $actionsToProcess += $action
+                $actions += $action
             }
         }
     }
     
-    return $actionsToProcess
+    return $actions
 }
 
 # Script Configuration and Initialization
@@ -444,12 +443,12 @@ if (Test-Path $checkpointFile) {
 }
 
 # FFmpeg Discovery
-$FFmpegPath = $null
+$ffmpegPath = $null
 if ($env:FFMPEG_PATH -and (Test-Path $env:FFMPEG_PATH)) {
-    $FFmpegPath = $env:FFMPEG_PATH
-    Write-Host "Using FFmpeg from environment variable: $FFmpegPath" -ForegroundColor Green
+    $ffmpegPath = $env:FFMPEG_PATH
+    Write-Host "Using FFmpeg from environment variable: $ffmpegPath" -ForegroundColor Green
 } elseif (Get-Command ffmpeg -ErrorAction SilentlyContinue) {
-    $FFmpegPath = "ffmpeg"
+    $ffmpegPath = "ffmpeg"
     Write-Host "Using FFmpeg from PATH" -ForegroundColor Green
 } else {
     Write-Host "FATAL: FFmpeg executable not found. Please install FFmpeg or set FFMPEG_PATH environment variable." -ForegroundColor Red
@@ -471,7 +470,7 @@ if ($DestinationPath -and -not (Test-Path (Split-Path $DestinationPath -Parent))
     exit 1
 }
 
-$actionsToProcess = Get-ProcessingActions -SourcePath $SourcePath -DestinationPath $DestinationPath -Recurse:$Recurse -Rename:$Rename
+$actions = Get-ProcessingActions -SourcePath $SourcePath -DestinationPath $DestinationPath -Recurse:$Recurse -Rename:$Rename
 
 Write-Message "Media Conversion - Plan" -Type Section
 Write-Message "Source: $SourcePath" -Type Info
@@ -482,28 +481,28 @@ Write-Message "Force: $([bool]$Force)" -Type Info
 Write-Host ""
 Write-Host "Scanning files in '$SourcePath'..." -ForegroundColor Cyan
 
-if ($actionsToProcess.Count -eq 0) {
+if ($actions.Count -eq 0) {
     Write-Host "No files to process." -ForegroundColor Green
     exit 0
 }
 
 # Update total count in statistics
-$statistics.Total = $actionsToProcess.Count
+$statistics.Total = $actions.Count
 
 # Handle WhatIf mode
 if ($WhatIf) {
-    Write-Message "What-If Mode: Planned Actions ($($actionsToProcess.Count))" -Type Section
-    $i = 0
-    foreach ($a in $actionsToProcess) {
-        $i++
-        $from = Get-ShortPath -InputPath $a.OriginalPath -Max 100
-        $to = Get-ShortPath -InputPath $a.NewPath -Max 100
-        if ($a.Type -eq "Rename") {
-            Write-Host ("[{0,3}] WOULD RENAME" -f $i) -ForegroundColor Cyan
+    Write-Message "What-If Mode: Planned Actions ($($actions.Count))" -Type Section
+    for ($i = 0; $i -lt $actions.Count; $i++) {
+        $action = $actions[$i]
+        $from = Get-ShortPath -InputPath $action.OriginalPath -MaxLength 100
+        $to = Get-ShortPath -InputPath $action.NewPath -MaxLength 100
+        
+        if ($action.Type -eq "Rename") {
+            Write-Host ("[{0,3}] WOULD RENAME" -f ($i + 1)) -ForegroundColor Cyan
         } else {
-            $fromExt = [System.IO.Path]::GetExtension($a.OriginalPath)
-            $toExt = [System.IO.Path]::GetExtension($a.NewPath)
-            Write-Host ("[{0,3}] WOULD CONVERT {1} -> {2}" -f $i, $fromExt, $toExt) -ForegroundColor Cyan
+            $fromExt = [System.IO.Path]::GetExtension($action.OriginalPath)
+            $toExt = [System.IO.Path]::GetExtension($action.NewPath)
+            Write-Host ("[{0,3}] WOULD CONVERT {1} -> {2}" -f ($i + 1), $fromExt, $toExt) -ForegroundColor Cyan
         }
         Write-Message "From: $from" -Type Info
         Write-Message "  To: $to" -Type Info
@@ -512,24 +511,24 @@ if ($WhatIf) {
     exit 0
 }
 
-if (!$Force) {
-    Write-Message "Planned Actions ($($actionsToProcess.Count))" -Type Section
-    $i = 0
-    foreach ($a in $actionsToProcess) {
-        $i++
-        $from = Get-ShortPath -InputPath $a.OriginalPath -Max 100
-        $to = Get-ShortPath -InputPath $a.NewPath -Max 100
-        if ($a.Type -eq "Rename") {
-            Write-Host ("[{0,3}] Rename" -f $i) -ForegroundColor Yellow
+if (-not $Force) {
+    Write-Message "Planned Actions ($($actions.Count))" -Type Section
+    for ($i = 0; $i -lt $actions.Count; $i++) {
+        $action = $actions[$i]
+        $from = Get-ShortPath -InputPath $action.OriginalPath -MaxLength 100
+        $to = Get-ShortPath -InputPath $action.NewPath -MaxLength 100
+        
+        if ($action.Type -eq "Rename") {
+            Write-Host ("[{0,3}] Rename" -f ($i + 1)) -ForegroundColor Yellow
         } else {
-            $fromExt = [System.IO.Path]::GetExtension($a.OriginalPath)
-            $toExt = [System.IO.Path]::GetExtension($a.NewPath)
-            Write-Host ("[{0,3}] Convert {1} -> {2}" -f $i, $fromExt, $toExt) -ForegroundColor Yellow
+            $fromExt = [System.IO.Path]::GetExtension($action.OriginalPath)
+            $toExt = [System.IO.Path]::GetExtension($action.NewPath)
+            Write-Host ("[{0,3}] Convert {1} -> {2}" -f ($i + 1), $fromExt, $toExt) -ForegroundColor Yellow
         }
         Write-Message "From: $from" -Type Info
         Write-Message "  To: $to" -Type Info
     }
-    $response = Read-Host "Proceed with $($actionsToProcess.Count) actions? [y/N]"
+    $response = Read-Host "Proceed with $($actions.Count) actions? [y/N]"
     if (@('Y', 'YES') -notcontains ($response.Trim().ToUpper())) {
         Write-Message "Operation cancelled by user." -Type Warning
         exit 0
@@ -537,7 +536,7 @@ if (!$Force) {
 }
 
 $currentAction = 0
-$sw = [System.Diagnostics.Stopwatch]::StartNew()
+$stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
 
 $checkpointData = @{
     SourcePath       = $SourcePath
@@ -547,7 +546,7 @@ $checkpointData = @{
     Timestamp        = Get-Date
 }
 
-foreach ($action in $actionsToProcess) {
+foreach ($action in $actions) {
     $currentAction++
     
     $percentComplete = [math]::Round(($currentAction / $statistics.Total) * 100, 1)
@@ -559,15 +558,14 @@ foreach ($action in $actionsToProcess) {
     $actionStartTime = Get-Date
     
     try {
-        $success = if ($action.Type -eq "Rename") {
-            $result = Invoke-FileRename -Action $action
-            if ($result) { 
+        if ($action.Type -eq "Rename") {
+            $success = Invoke-FileRename -Action $action
+            if ($success) { 
                 $statistics.Renamed++
             }
-            $result
         } else {
-            $result = Invoke-MediaConversion -Action $action -FFmpegPath $FFmpegPath
-            if ($result) {
+            $success = Invoke-MediaConversion -Action $action -FFmpegPath $ffmpegPath
+            if ($success) {
                 $statistics.Converted++
                 
                 try {
@@ -579,13 +577,16 @@ foreach ($action in $actionsToProcess) {
                     Write-Host "    Original file remains at: $($action.OriginalPath)" -ForegroundColor Gray
                 }
             }
-            $result
         }
         
         if (-not $success) {
             $statistics.Failed++
-            $errorMsg = if ($action.Type -eq "Rename") { "Rename operation failed" } else { "Conversion failed" }
-            $failedOperations += @{File = $action.OriginalPath; Error = $errorMsg; Time = $actionStartTime }
+            $errorMessage = if ($action.Type -eq "Rename") { "Rename operation failed" } else { "Conversion failed" }
+            $failedOperations += @{
+                File  = $action.OriginalPath
+                Error = $errorMessage
+                Time  = $actionStartTime 
+            }
         }
         
         $checkpointData.ProcessedActions += @{
@@ -601,10 +602,14 @@ foreach ($action in $actionsToProcess) {
     } catch {
         Write-Host "  ✗ CRITICAL ERROR: $($_.Exception.Message)" -ForegroundColor Red
         $statistics.Failed++
-        $failedOperations += @{File = $action.OriginalPath; Error = $_.Exception.Message; Time = $actionStartTime }
+        $failedOperations += @{
+            File  = $action.OriginalPath
+            Error = $_.Exception.Message
+            Time  = $actionStartTime 
+        }
     }
 }
-$sw.Stop()
+$stopwatch.Stop()
 
 # Complete progress reporting
 Write-Progress -Activity "Processing Media Files" -Completed
@@ -614,6 +619,7 @@ if ($statistics.Failed -eq 0 -and (Test-Path $checkpointFile)) {
     Remove-Item $checkpointFile -ErrorAction SilentlyContinue
 }
 
+# Display summary
 Write-Message "Summary" -Type Section
 Write-Message "Total actions: $($statistics.Total)" -Type Info
 Write-Message "Converted: $($statistics.Converted)" -Type Success
@@ -627,7 +633,7 @@ if ($statistics.Failed -gt 0) {
     
     for ($i = 0; $i -lt $failedOperations.Count; $i++) {
         $failure = $failedOperations[$i]
-        Write-Message "[{0,3}] {1}" -f ($i + 1), (Get-ShortPath -InputPath $failure.File -Max 80) -Type Error
+        Write-Message "[{0,3}] {1}" -f ($i + 1), (Get-ShortPath -InputPath $failure.File -MaxLength 80) -Type Error
         Write-Host "      Error: $($failure.Error)" -ForegroundColor DarkRed
         Write-Host "      Time: $($failure.Time.ToString('yyyy-MM-dd HH:mm:ss'))" -ForegroundColor Gray
     }
@@ -639,4 +645,4 @@ if ($statistics.Failed -gt 0) {
     Write-Message "All operations completed successfully!" -Type Success
 }
 
-Write-Message "Elapsed: $($sw.Elapsed.ToString('c'))" -Type Info
+Write-Message "Elapsed: $($stopwatch.Elapsed.ToString('c'))" -Type Info
