@@ -130,6 +130,10 @@ function Invoke-MediaConversion {
         return $false
     }
 
+    # Ensure destination directory exists before running ffmpeg
+    $destDir = Split-Path -Path $Action.NewPath -Parent
+    if (-not (Test-Path $destDir)) { New-Item -ItemType Directory -Path $destDir | Out-Null }
+
     $result = Invoke-FFmpegConversion -FFmpegExePath $FFmpegPath -Arguments $ffmpegArgs -OriginalFilePath $Action.OriginalPath
 
     if ($result.Success) {
@@ -160,6 +164,35 @@ function Invoke-FileRename {
         Write-Host "ERROR: Rename failed: $($_.Exception.Message)" -ForegroundColor Red
         return $false
     }
+}
+function Write-Section {
+    param([Parameter(Mandatory)][string]$Title)
+    Write-Host "";
+    Write-Host ("==== $Title ====") -ForegroundColor Magenta
+}
+function Write-Info {
+    param([Parameter(Mandatory)][string]$Message)
+    Write-Host ("  " + $Message) -ForegroundColor Gray
+}
+function Write-Success {
+    param([Parameter(Mandatory)][string]$Message)
+    Write-Host ("  " + $Message) -ForegroundColor Green
+}
+function Write-WarnMsg {
+    param([Parameter(Mandatory)][string]$Message)
+    Write-Host ("  " + $Message) -ForegroundColor Yellow
+}
+function Write-ErrorMsg {
+    param([Parameter(Mandatory)][string]$Message)
+    Write-Host ("  " + $Message) -ForegroundColor Red
+}
+function Get-ShortPath {
+    param([Parameter(Mandatory)][string]$InputPath, [int]$Max = 100)
+    if ([string]::IsNullOrEmpty($InputPath)) { return "" }
+    if ($InputPath.Length -le $Max) { return $InputPath }
+    $prefixLen = [Math]::Min([int][Math]::Round($Max / 2.5), $InputPath.Length)
+    $suffixLen = [Math]::Min($Max - $prefixLen - 3, [Math]::Max(0, $InputPath.Length - $prefixLen))
+    return ($InputPath.Substring(0, $prefixLen) + '...' + $InputPath.Substring($InputPath.Length - $suffixLen))
 }
 $ErrorActionPreference = "Continue"
 $FFmpegPath = "C:\Users\Maxim\AppData\Local\Microsoft\WinGet\Links\ffmpeg.exe"
@@ -195,7 +228,14 @@ $mediaTypes = @{
     ".m4a"  = @{ Prefix = "AUD"; Type = "Audio"; Target = ".mp3" }
 }
 
-Write-Host "Scanning files in '$SourcePath'..." -ForegroundColor Cyan
+Write-Section "Media Conversion - Plan"
+Write-Info ("Source: " + $SourcePath)
+Write-Info ("Destination: " + (if ([string]::IsNullOrEmpty($DestinationPath)) { "(in-place)" } else { $DestinationPath }))
+Write-Info ("Recurse: " + ([bool]$Recurse))
+Write-Info ("Rename non-standard: " + ([bool]$Rename))
+Write-Info ("Force: " + ([bool]$Force))
+Write-Host ""
+Write-Host ("Scanning files in '" + $SourcePath + "'...") -ForegroundColor Cyan
 
 foreach ($file in $sourceFiles) {
     $ext = $file.Extension.ToLower()
@@ -212,7 +252,7 @@ foreach ($file in $sourceFiles) {
             $relPath = $relPath.TrimStart('\\')
             Join-Path $DestinationPath $relPath
         }
-        if (-not (Test-Path $outputDir)) { New-Item -ItemType Directory -Path $outputDir | Out-Null }
+        # NOTE: Do not create directories during planning to avoid side effects if user cancels
 
         $newPath = Get-UniqueTimestampFileName -OriginalFile $file -TargetExtension $mediaInfo.Target -Prefix $mediaInfo.Prefix -OutputDirectory $outputDir
 
@@ -241,17 +281,33 @@ if ($actionsToProcess.Count -eq 0) {
 }
 
 if (!$Force) {
-    Write-Host "The following actions will be performed:" -ForegroundColor Yellow
-    $actionsToProcess | Format-Table -AutoSize
-    $response = Read-Host "Do you want to continue? (Y/N)"
-    if ($response -ne 'Y') {
-        Write-Host "Operation cancelled by user." -ForegroundColor Yellow
+    Write-Section "Planned Actions ($($actionsToProcess.Count))"
+    $i = 0
+    foreach ($a in $actionsToProcess) {
+        $i++
+        $from = Get-ShortPath -InputPath $a.OriginalPath -Max 100
+        $to = Get-ShortPath -InputPath $a.NewPath -Max 100
+        if ($a.Type -eq "Rename") {
+            Write-Host ("[{0,3}] Rename" -f $i) -ForegroundColor Yellow
+        } else {
+            $fromExt = [System.IO.Path]::GetExtension($a.OriginalPath)
+            $toExt = [System.IO.Path]::GetExtension($a.NewPath)
+            Write-Host ("[{0,3}] Convert {1} -> {2}" -f $i, $fromExt, $toExt) -ForegroundColor Yellow
+        }
+        Write-Info ("From: " + $from)
+        Write-Info ("  To: " + $to)
+    }
+    $response = Read-Host "Proceed with $($actionsToProcess.Count) actions? [y/N]"
+    if (@('Y', 'YES') -notcontains ($response.Trim().ToUpper())) {
+        Write-WarnMsg "Operation cancelled by user."
         exit 0
     }
 }
 
 $total = $actionsToProcess.Count
 $current = 0
+# Start stopwatch for elapsed time tracking
+$sw = [System.Diagnostics.Stopwatch]::StartNew()
 
 foreach ($action in $actionsToProcess) {
     $current++
@@ -260,13 +316,37 @@ foreach ($action in $actionsToProcess) {
     $success = $false
     if ($action.Type -eq "Rename") {
         $success = Invoke-FileRename -Action $action
+        if ($success) { $stats.Renamed++ } else { $stats.Failed++; $failures += $action.OriginalPath }
     } else {
         $success = Invoke-MediaConversion -Action $action -FFmpegPath $FFmpegPath
         if ($success) {
-            Remove-Item -LiteralPath $action.OriginalPath
-            Write-Host "  Removed original file." -ForegroundColor Green
-        }
+            # Count conversion success
+            $stats.Converted++
+            # Attempt to remove original file with error handling
+            try {
+                Remove-Item -LiteralPath $action.OriginalPath -ErrorAction Stop
+                Write-Host "  Removed original file." -ForegroundColor Green
+                $stats.Deleted++
+            } catch {
+                Write-Host ("  ERROR: Failed to delete original: " + $_.Exception.Message) -ForegroundColor Yellow
+                $stats.Failed++
+                $failures += $action.OriginalPath
+            }
+        } else { $stats.Failed++; $failures += $action.OriginalPath }
     }
 }
-
+$sw.Stop()
+Write-Section "Summary"
+Write-Info ("Total actions: {0}" -f $stats.Total)
+Write-Success ("Converted: {0}" -f $stats.Converted)
+Write-Success ("Renamed:   {0}" -f $stats.Renamed)
+Write-Success ("Deleted originals: {0}" -f $stats.Deleted)
+if ($stats.Failed -gt 0) {
+    Write-Host ("Failed: {0}" -f $stats.Failed) -ForegroundColor Red
+    $idx = 0
+    foreach ($f in $failures) { $idx++; Write-ErrorMsg (("[{0,3}] " -f $idx) + (Get-ShortPath -InputPath $f -Max 100)) }
+} else {
+    Write-Info "Failed: 0"
+}
+Write-Info ("Elapsed: {0:c}" -f $sw.Elapsed)
 Write-Host "`n--- All operations completed. ---" -ForegroundColor Green
