@@ -361,29 +361,32 @@ foreach ($action in $actions) {
             Write-Host "[$processedCount/$($actions.Count)] Converting: $fileName" -ForegroundColor Cyan
             
             # Build FFmpeg command based on media type
-            $ffmpegArgs = @("-i", $action.OriginalPath, "-y")
+            $inputPath = $action.OriginalPath
+            $outputPath = $action.NewPath
+            $ffmpegArgs = @("-y", "-hide_banner", "-loglevel", "error", "-i", $inputPath)
             
             switch -Regex ($action.Type) {
                 "ImageConversion" {
-                    $ffmpegArgs += @("-q:v", "2", $action.NewPath)
+                    $ffmpegArgs += @("-q:v", "2", $outputPath)
                 }
                 "VideoConversion" {
-                    $ffmpegArgs += @("-c:v", "libx264", "-crf", "23", "-c:a", "aac", "-b:a", "128k", $action.NewPath)
+                    $ffmpegArgs += @("-c:v", "libx264", "-crf", "23", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "128k", $outputPath)
                 }
                 "AudioConversion" {
-                    $ffmpegArgs += @("-c:a", "libmp3lame", "-b:a", "320k", $action.NewPath)
+                    $ffmpegArgs += @("-c:a", "libmp3lame", "-b:a", "320k", $outputPath)
                 }
             }
             
-            # Execute FFmpeg
-            $process = Start-Process -FilePath $script:ffmpegPath -ArgumentList $ffmpegArgs -Wait -PassThru -WindowStyle Hidden -ErrorAction Stop
+            # Execute FFmpeg (direct invocation ensures proper quoting of args)
+            & $script:ffmpegPath @ffmpegArgs
+            $exitCode = $LASTEXITCODE
             
-            if ($process.ExitCode -eq 0) {
+            if ($exitCode -eq 0) {
                 Write-Message "Converted successfully" -Type Success
                 # Remove original file after successful conversion
                 Remove-Item -Path $action.OriginalPath -Force
             } else {
-                Write-Message "Conversion failed (Exit code: $($process.ExitCode))" -Type Error
+                Write-Message "Conversion failed (Exit code: $exitCode)" -Type Error
                 $errorCount++
             }
         }
