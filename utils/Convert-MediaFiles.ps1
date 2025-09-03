@@ -58,9 +58,9 @@
     • Write permissions to source/destination directories
     
     Supported Formats:
-    • Images: JPG, JPEG, PNG, BMP, TIFF, HEIC → JPG
-    • Videos: MP4, MOV, MKV, AVI, WMV → MP4 (H.264, AAC audio)
-    • Audio: MP3, WAV, FLAC, M4A → MP3 (320kbps)
+    • Images: JPG, JPEG, PNG, BMP, TIFF, HEIC, WEBP, AVIF, SVG → JPG
+    • Videos: MP4, MOV, MKV, AVI, WMV, WEBM, OGV → MP4 (H.264, AAC audio)
+    • Audio: MP3, WAV, FLAC, M4A, WEBA, OGG, OPUS → MP3 (320kbps)
     
     Author: Media Conversion Script
     Version: 2.1
@@ -126,15 +126,22 @@ function Get-MediaTypeConfiguration {
         ".tiff" = @{ Prefix = "IMG"; Type = "Image"; Target = ".jpg" }
         ".heic" = @{ Prefix = "IMG"; Type = "Image"; Target = ".jpg" }
         ".webp" = @{ Prefix = "IMG"; Type = "Image"; Target = ".jpg" }
+        ".avif" = @{ Prefix = "IMG"; Type = "Image"; Target = ".jpg" }
+        ".svg"  = @{ Prefix = "IMG"; Type = "Image"; Target = ".jpg" }
         ".mp4"  = @{ Prefix = "VID"; Type = "Video"; Target = ".mp4" }
         ".mov"  = @{ Prefix = "VID"; Type = "Video"; Target = ".mp4" }
         ".mkv"  = @{ Prefix = "VID"; Type = "Video"; Target = ".mp4" }
         ".avi"  = @{ Prefix = "VID"; Type = "Video"; Target = ".mp4" }
         ".wmv"  = @{ Prefix = "VID"; Type = "Video"; Target = ".mp4" }
+        ".webm" = @{ Prefix = "VID"; Type = "Video"; Target = ".mp4" }
+        ".ogv"  = @{ Prefix = "VID"; Type = "Video"; Target = ".mp4" }
         ".mp3"  = @{ Prefix = "AUD"; Type = "Audio"; Target = ".mp3" }
         ".wav"  = @{ Prefix = "AUD"; Type = "Audio"; Target = ".mp3" }
         ".flac" = @{ Prefix = "AUD"; Type = "Audio"; Target = ".mp3" }
         ".m4a"  = @{ Prefix = "AUD"; Type = "Audio"; Target = ".mp3" }
+        ".weba" = @{ Prefix = "AUD"; Type = "Audio"; Target = ".mp3" }
+        ".ogg"  = @{ Prefix = "AUD"; Type = "Audio"; Target = ".mp3" }
+        ".opus" = @{ Prefix = "AUD"; Type = "Audio"; Target = ".mp3" }
     }
 }
 
