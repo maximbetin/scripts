@@ -125,6 +125,7 @@ function Get-MediaTypeConfiguration {
         ".bmp"  = @{ Prefix = "IMG"; Type = "Image"; Target = ".jpg" }
         ".tiff" = @{ Prefix = "IMG"; Type = "Image"; Target = ".jpg" }
         ".heic" = @{ Prefix = "IMG"; Type = "Image"; Target = ".jpg" }
+        ".webp" = @{ Prefix = "IMG"; Type = "Image"; Target = ".jpg" }
         ".mp4"  = @{ Prefix = "VID"; Type = "Video"; Target = ".mp4" }
         ".mov"  = @{ Prefix = "VID"; Type = "Video"; Target = ".mp4" }
         ".mkv"  = @{ Prefix = "VID"; Type = "Video"; Target = ".mp4" }
