@@ -303,29 +303,29 @@ $ErrorActionPreference = "Continue"
 # FFmpeg Discovery
 if ($env:FFMPEG_PATH -and (Test-Path $env:FFMPEG_PATH)) {
     $script:ffmpegPath = $env:FFMPEG_PATH
-    Write-Host "Using FFmpeg from environment variable: $script:ffmpegPath" -ForegroundColor Green
+    Write-Message "Using FFmpeg from environment variable: $script:ffmpegPath" -Type Success
 } elseif (Get-Command ffmpeg -ErrorAction SilentlyContinue) {
     $script:ffmpegPath = "ffmpeg"
-    Write-Host "Using FFmpeg from PATH" -ForegroundColor Green
+    Write-Message "Using FFmpeg from PATH" -Type Success
 } else {
-    Write-Host "FATAL: FFmpeg executable not found. Please install FFmpeg or set FFMPEG_PATH environment variable." -ForegroundColor Red
-    Write-Host "Install options:" -ForegroundColor Yellow
-    Write-Host "  • winget install ffmpeg" -ForegroundColor Gray
-    Write-Host "  • choco install ffmpeg" -ForegroundColor Gray
-    Write-Host "  • Download from https://ffmpeg.org/download.html" -ForegroundColor Gray
+    Write-Message "FATAL: FFmpeg executable not found. Please install FFmpeg or set FFMPEG_PATH environment variable." -Type Error
+    Write-Message "Install options:" -Type Warning
+    Write-Message "  • winget install ffmpeg" -Type Info
+    Write-Message "  • choco install ffmpeg" -Type Info
+    Write-Message "  • Download from https://ffmpeg.org/download.html" -Type Info
     exit 1
 }
 
 # Input validation
 if (-not (Test-Path $SourcePath)) {
-    Write-Host "ERROR: Source path does not exist: $SourcePath" -ForegroundColor Red
+    Write-Message "ERROR: Source path does not exist: $SourcePath" -Type Error
     exit 1
 }
 
 if ($DestinationPath) {
     $destinationParent = Split-Path $DestinationPath -Parent
     if ($destinationParent -and -not (Test-Path $destinationParent)) {
-        Write-Host "ERROR: Destination parent directory does not exist: $destinationParent" -ForegroundColor Red
+        Write-Message "ERROR: Destination parent directory does not exist: $destinationParent" -Type Error
         exit 1
     }
 }
@@ -402,17 +402,15 @@ function Get-FFmpegArgs {
         [Parameter(Mandatory)]
         [string]$OutputPath
     )
-    $ffArgs = @("-y", "-hide_banner", "-loglevel", "error", "-i", $InputPath)
+    $ffmpegArgs = @("-y", "-hide_banner", "-loglevel", "error", "-i", $InputPath)
     switch -Regex ($ActionType) {
-        "ImageConversion" { $ffArgs += @("-vf", "auto-orient", "-q:v", "2", $OutputPath) }
-        "VideoConversion" { $ffArgs += @("-c:v", "libx264", "-crf", "23", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "128k", "-movflags", "+faststart", $OutputPath) }
-        "AudioConversion" { $ffArgs += @("-c:a", "libmp3lame", "-b:a", "320k", $OutputPath) }
-        default { $ffArgs += @($OutputPath) }
+        "ImageConversion" { $ffmpegArgs += @("-vf", "auto-orient", "-q:v", "2", $OutputPath) }
+        "VideoConversion" { $ffmpegArgs += @("-c:v", "libx264", "-crf", "23", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "128k", "-movflags", "+faststart", $OutputPath) }
+        "AudioConversion" { $ffmpegArgs += @("-c:a", "libmp3lame", "-b:a", "320k", $OutputPath) }
+        default { $ffmpegArgs += @($OutputPath) }
     }
-    return $ffArgs
+    return $ffmpegArgs
 }
-
-$actions = Get-ProcessingActions -SourcePath $SourcePath -DestinationPath $DestinationPath -Recurse:$Recurse -Rename:$Rename
 
 Write-Message "Media Conversion - Plan" -Type Section
 Write-Message "Source: $SourcePath" -Type Info
@@ -420,11 +418,20 @@ Write-Message "Destination: $(if ([string]::IsNullOrEmpty($DestinationPath)) { '
 Write-Message "Recurse: $([bool]$Recurse)" -Type Info
 Write-Message "Rename non-standard: $([bool]$Rename)" -Type Info
 Write-Message "Force: $([bool]$Force)" -Type Info
-Write-Host ""
-Write-Host "Scanning files in '$SourcePath'..." -ForegroundColor Cyan
+Write-Message "Scanning files in '$SourcePath'..." -Type Info
+
+$actions = Get-ProcessingActions -SourcePath $SourcePath -DestinationPath $DestinationPath -Recurse:$Recurse -Rename:$Rename
+
+# Precompute FFmpeg arguments to ensure consistency across serial and parallel execution
+foreach ($a in $actions) {
+    if ($a.Type -ne "Rename") {
+        $a.FFmpegArgs = Get-FFmpegArgs -ActionType $a.Type -InputPath $a.OriginalPath -OutputPath $a.NewPath
+        $a.ExistingOutput = Get-ExistingOutputPath -Action $a
+    }
+}
 
 if ($actions.Count -eq 0) {
-    Write-Host "No files to process." -ForegroundColor Green
+    Write-Message "No files to process." -Type Success
     exit 0
 }
 
@@ -437,26 +444,26 @@ if ($WhatIf) {
         $to = Get-ShortPath -InputPath $action.NewPath -MaxLength 100
         
         if ($action.Type -eq "Rename") {
-            Write-Host ("[{0,3}] WOULD RENAME" -f ($i + 1)) -ForegroundColor Cyan
+            Write-Message ("[{0,3}] WOULD RENAME" -f ($i + 1)) -Type Info
         } else {
             $fromExt = [System.IO.Path]::GetExtension($action.OriginalPath)
             $toExt = [System.IO.Path]::GetExtension($action.NewPath)
-            Write-Host ("[{0,3}] WOULD CONVERT {1} -> {2}" -f ($i + 1), $fromExt, $toExt) -ForegroundColor Cyan
+            Write-Message ("[{0,3}] WOULD CONVERT {1} -> {2}" -f ($i + 1), $fromExt, $toExt) -Type Info
         }
         Write-Message "From: $from" -Type Info
         Write-Message "  To: $to" -Type Info
     }
-    Write-Host "`nWhat-If mode completed. No files were modified." -ForegroundColor Green
+    Write-Message "What-If mode completed. No files were modified." -Type Success
     exit 0
 }
 
 # User confirmation (unless Force is specified)
 if (-not $Force) {
-    Write-Host ""
-    Write-Host "Ready to process $($actions.Count) file(s). Continue? [Y/N]: " -NoNewline -ForegroundColor Yellow
+    Write-Message "Ready to process $($actions.Count) file(s)." -Type Warning
+    Write-Host "Continue? [Y/N]: " -NoNewline -ForegroundColor Yellow
     $response = Read-Host
     if ($response -notmatch '^[Yy]') {
-        Write-Host "Operation cancelled by user." -ForegroundColor Yellow
+        Write-Message "Operation cancelled by user." -Type Warning
         exit 0
     }
 }
@@ -467,7 +474,7 @@ $processedCount = 0
 $errorCount = 0
 
 if ($PSVersionTable.PSVersion.Major -ge 7 -and $MaxParallel -gt 1) {
-    Write-Host "Processing in parallel with up to $MaxParallel workers..." -ForegroundColor Cyan
+    Write-Message "Processing in parallel with up to $MaxParallel workers..." -Type Info
     $ffmpegPathLocal = $script:ffmpegPath
     $noDeleteLocal = [bool]$NoDelete
 
@@ -483,33 +490,26 @@ if ($PSVersionTable.PSVersion.Major -ge 7 -and $MaxParallel -gt 1) {
             if ($action.Type -eq "Rename") {
                 Move-Item -LiteralPath $action.OriginalPath -Destination $action.NewPath -Force -ErrorAction Stop
             } else {
-                # Resume: skip if output already exists
-                $existingOutput = $null
-                $pathsToCheck = @($action.NewPath, $action.BasePath) | Where-Object { $_ }
-                foreach ($p in $pathsToCheck) {
-                    if ((Test-Path -LiteralPath $p) -and ((Get-Item -LiteralPath $p).Length -gt 0)) { $existingOutput = $p; break }
-                }
-                if (-not $existingOutput) {
-                    $dir = Split-Path $action.NewPath -Parent
-                    $leafBase = [System.IO.Path]::GetFileNameWithoutExtension($action.BasePath)
-                    $ext = [System.IO.Path]::GetExtension($action.BasePath)
-                    $patternPath = Join-Path $dir ("{0}*{1}" -f $leafBase, $ext)
-                    $existing = Get-ChildItem -Path $patternPath -File -ErrorAction SilentlyContinue | Where-Object { $_.Length -gt 0 } | Select-Object -First 1
-                    if ($existing) { $existingOutput = $existing.FullName }
-                }
+                # Resume: skip if output already exists (precomputed at planning stage)
+                $existingOutput = $action.ExistingOutput
                 if ($existingOutput) { [pscustomobject]@{ Success = $true; Skipped = $true; Type = $action.Type; OriginalPath = $action.OriginalPath; OutputPath = $existingOutput }; return }
 
                 $inputPath = $action.OriginalPath
                 $outputPath = $action.NewPath
-                $ffArgs = @("-y", "-hide_banner", "-loglevel", "error", "-i", $inputPath)
-                switch -Regex ($action.Type) {
-                    "ImageConversion" { $ffArgs += @("-vf", "auto-orient", "-q:v", "2", $outputPath) }
-                    "VideoConversion" { $ffArgs += @("-c:v", "libx264", "-crf", "23", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "128k", "-movflags", "+faststart", $outputPath) }
-                    "AudioConversion" { $ffArgs += @("-c:a", "libmp3lame", "-b:a", "320k", $outputPath) }
-                    default { $ffArgs += @($outputPath) }
+                
+                # Prefer precomputed FFmpeg args; fall back to minimal construction if missing
+                $ffmpegArgs = $action.FFmpegArgs
+                if (-not $ffmpegArgs) {
+                    $ffmpegArgs = @("-y", "-hide_banner", "-loglevel", "error", "-i", $inputPath)
+                    switch -Regex ($action.Type) {
+                        "ImageConversion" { $ffmpegArgs += @("-vf", "auto-orient", "-q:v", "2", $outputPath) }
+                        "VideoConversion" { $ffmpegArgs += @("-c:v", "libx264", "-crf", "23", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "128k", "-movflags", "+faststart", $outputPath) }
+                        "AudioConversion" { $ffmpegArgs += @("-c:a", "libmp3lame", "-b:a", "320k", $outputPath) }
+                        default { $ffmpegArgs += @($outputPath) }
+                    }
                 }
 
-                & $using:ffmpegPathLocal @ffArgs
+                & $using:ffmpegPathLocal @ffmpegArgs
                 $exitCode = $LASTEXITCODE
 
                 if ($exitCode -eq 0 -and (Test-Path -LiteralPath $outputPath) -and ((Get-Item -LiteralPath $outputPath).Length -gt 0)) {
@@ -546,23 +546,27 @@ if ($PSVersionTable.PSVersion.Major -ge 7 -and $MaxParallel -gt 1) {
             New-Directory -Path $outputDir
             
             if ($action.Type -eq "Rename") {
-                Write-Host "[$processedCount/$($actions.Count)] Renaming: $fileName" -ForegroundColor Cyan
+                Write-Message "[$processedCount/$($actions.Count)] Renaming: $fileName" -Type Info
                 Move-Item -LiteralPath $action.OriginalPath -Destination $action.NewPath -Force -ErrorAction Stop
                 Write-Message "Renamed successfully" -Type Success
             } else {
                 # Resume: skip if output already exists
-                $existing = Get-ExistingOutputPath -Action $action
+                $existing = $action.ExistingOutput
+                if (-not $existing) { $existing = Get-ExistingOutputPath -Action $action }
                 if ($existing) {
-                    Write-Host "[$processedCount/$($actions.Count)] Skipping (already exists): $(Split-Path $existing -Leaf)" -ForegroundColor Yellow
+                    Write-Message "[$processedCount/$($actions.Count)] Skipping (already exists): $(Split-Path $existing -Leaf)" -Type Warning
                     continue
                 }
 
-                Write-Host "[$processedCount/$($actions.Count)] Converting: $fileName" -ForegroundColor Cyan
+                Write-Message "[$processedCount/$($actions.Count)] Converting: $fileName" -Type Info
                 
-                # Build FFmpeg command based on media type
+                # Build FFmpeg command based on precomputed args (fallback to function if missing)
                 $inputPath = $action.OriginalPath
                 $outputPath = $action.NewPath
-                $ffmpegArgs = Get-FFmpegArgs -ActionType $action.Type -InputPath $inputPath -OutputPath $outputPath
+                $ffmpegArgs = $action.FFmpegArgs
+                if (-not $ffmpegArgs) {
+                    $ffmpegArgs = Get-FFmpegArgs -ActionType $action.Type -InputPath $inputPath -OutputPath $outputPath
+                }
                 
                 # Execute FFmpeg (direct invocation ensures proper quoting of args)
                 & $script:ffmpegPath @ffmpegArgs
@@ -601,5 +605,5 @@ Write-Message "Successful: $($processedCount - $errorCount)" -Type Success
 if ($errorCount -gt 0) {
     Write-Message "Errors: $errorCount" -Type Error
 } else {
-    Write-Host "All files processed successfully!" -ForegroundColor Green
+    Write-Message "All files processed successfully!" -Type Success
 }
