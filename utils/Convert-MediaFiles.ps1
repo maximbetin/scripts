@@ -127,7 +127,6 @@ function Get-MediaTypeConfiguration {
         ".heic" = @{ Prefix = "IMG"; Type = "Image"; Target = ".jpg" }
         ".webp" = @{ Prefix = "IMG"; Type = "Image"; Target = ".jpg" }
         ".avif" = @{ Prefix = "IMG"; Type = "Image"; Target = ".jpg" }
-        ".svg"  = @{ Prefix = "IMG"; Type = "Image"; Target = ".jpg" }
         ".mp4"  = @{ Prefix = "VID"; Type = "Video"; Target = ".mp4" }
         ".mov"  = @{ Prefix = "VID"; Type = "Video"; Target = ".mp4" }
         ".mkv"  = @{ Prefix = "VID"; Type = "Video"; Target = ".mp4" }
@@ -350,12 +349,12 @@ foreach ($action in $actions) {
         # Ensure output directory exists
         $outputDir = Split-Path $action.NewPath -Parent
         if (-not (Test-Path $outputDir)) {
-            New-Item -Path $outputDir -ItemType Directory -Force | Out-Null
+            New-Item -Path $outputDir -ItemType Directory -Force -ErrorAction Stop | Out-Null
         }
         
         if ($action.Type -eq "Rename") {
             Write-Host "[$processedCount/$($actions.Count)] Renaming: $fileName" -ForegroundColor Cyan
-            Move-Item -Path $action.OriginalPath -Destination $action.NewPath -Force
+            Move-Item -Path $action.OriginalPath -Destination $action.NewPath -Force -ErrorAction Stop
             Write-Message "Renamed successfully" -Type Success
         } else {
             Write-Host "[$processedCount/$($actions.Count)] Converting: $fileName" -ForegroundColor Cyan
@@ -370,7 +369,7 @@ foreach ($action in $actions) {
                     $ffmpegArgs += @("-q:v", "2", $outputPath)
                 }
                 "VideoConversion" {
-                    $ffmpegArgs += @("-c:v", "libx264", "-crf", "23", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "128k", $outputPath)
+                    $ffmpegArgs += @("-c:v", "libx264", "-crf", "23", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "128k", "-movflags", "+faststart", $outputPath)
                 }
                 "AudioConversion" {
                     $ffmpegArgs += @("-c:a", "libmp3lame", "-b:a", "320k", $outputPath)
@@ -381,12 +380,16 @@ foreach ($action in $actions) {
             & $script:ffmpegPath @ffmpegArgs
             $exitCode = $LASTEXITCODE
             
-            if ($exitCode -eq 0) {
+            if ($exitCode -eq 0 -and (Test-Path $outputPath) -and ((Get-Item $outputPath).Length -gt 0)) {
                 Write-Message "Converted successfully" -Type Success
                 # Remove original file after successful conversion
-                Remove-Item -Path $action.OriginalPath -Force
+                Remove-Item -Path $action.OriginalPath -Force -ErrorAction Stop
             } else {
-                Write-Message "Conversion failed (Exit code: $exitCode)" -Type Error
+                if ($exitCode -eq 0) {
+                    Write-Message "Conversion failed: output file missing or empty" -Type Error
+                } else {
+                    Write-Message "Conversion failed (Exit code: $exitCode)" -Type Error
+                }
                 $errorCount++
             }
         }
