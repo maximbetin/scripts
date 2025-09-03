@@ -194,10 +194,10 @@ function New-ProcessingAction {
     
     $extension = $File.Extension.ToLower()
     $isCorrectFormat = ($extension -eq $MediaInfo.Target)
-    $isStandardName = $File.Name -match '^(IMG|VID|AUD)_\d{8}_\d{6}_\d{3}(_\d+)?\.+'
+    $isStandardName = $File.Name -match '^(IMG|VID|AUD)_\d{8}_\d{6}_\d{3}(_\d+)?\.[^.]+$'
     
-    $outputDirectory = if ([string]::IsNullOrEmpty($DestinationPath)) { 
-        $File.DirectoryName 
+    $outputDirectory = if ([string]::IsNullOrEmpty($DestinationPath)) {
+        $File.DirectoryName
     } else {
         $sourceFullPath = (Resolve-Path -LiteralPath $SourcePath).ProviderPath
         $fileDirectoryPath = (Resolve-Path -LiteralPath $File.DirectoryName).ProviderPath
@@ -259,12 +259,11 @@ function Get-ProcessingActions {
 $ErrorActionPreference = "Continue"
 
 # FFmpeg Discovery
-$ffmpegPath = $null
 if ($env:FFMPEG_PATH -and (Test-Path $env:FFMPEG_PATH)) {
-    $ffmpegPath = $env:FFMPEG_PATH
-    Write-Host "Using FFmpeg from environment variable: $ffmpegPath" -ForegroundColor Green
+    $script:ffmpegPath = $env:FFMPEG_PATH
+    Write-Host "Using FFmpeg from environment variable: $script:ffmpegPath" -ForegroundColor Green
 } elseif (Get-Command ffmpeg -ErrorAction SilentlyContinue) {
-    $ffmpegPath = "ffmpeg"
+    $script:ffmpegPath = "ffmpeg"
     Write-Host "Using FFmpeg from PATH" -ForegroundColor Green
 } else {
     Write-Host "FATAL: FFmpeg executable not found. Please install FFmpeg or set FFMPEG_PATH environment variable." -ForegroundColor Red
@@ -281,9 +280,12 @@ if (-not (Test-Path $SourcePath)) {
     exit 1
 }
 
-if ($DestinationPath -and -not (Test-Path (Split-Path $DestinationPath -Parent))) {
-    Write-Host "ERROR: Destination parent directory does not exist: $(Split-Path $DestinationPath -Parent)" -ForegroundColor Red
-    exit 1
+if ($DestinationPath) {
+    $destinationParent = Split-Path $DestinationPath -Parent
+    if ($destinationParent -and -not (Test-Path $destinationParent)) {
+        Write-Host "ERROR: Destination parent directory does not exist: $destinationParent" -ForegroundColor Red
+        exit 1
+    }
 }
 
 $actions = Get-ProcessingActions -SourcePath $SourcePath -DestinationPath $DestinationPath -Recurse:$Recurse -Rename:$Rename
@@ -324,4 +326,79 @@ if ($WhatIf) {
     exit 0
 }
 
-Write-Host "Script completed successfully!" -ForegroundColor Green
+# User confirmation (unless Force is specified)
+if (-not $Force) {
+    Write-Host ""
+    Write-Host "Ready to process $($actions.Count) file(s). Continue? [Y/N]: " -NoNewline -ForegroundColor Yellow
+    $response = Read-Host
+    if ($response -notmatch '^[Yy]') {
+        Write-Host "Operation cancelled by user." -ForegroundColor Yellow
+        exit 0
+    }
+}
+
+# Process files
+Write-Message "Processing Files" -Type Section
+$processedCount = 0
+$errorCount = 0
+
+foreach ($action in $actions) {
+    $processedCount++
+    $fileName = Split-Path $action.OriginalPath -Leaf
+    
+    try {
+        # Ensure output directory exists
+        $outputDir = Split-Path $action.NewPath -Parent
+        if (-not (Test-Path $outputDir)) {
+            New-Item -Path $outputDir -ItemType Directory -Force | Out-Null
+        }
+        
+        if ($action.Type -eq "Rename") {
+            Write-Host "[$processedCount/$($actions.Count)] Renaming: $fileName" -ForegroundColor Cyan
+            Move-Item -Path $action.OriginalPath -Destination $action.NewPath -Force
+            Write-Message "Renamed successfully" -Type Success
+        } else {
+            Write-Host "[$processedCount/$($actions.Count)] Converting: $fileName" -ForegroundColor Cyan
+            
+            # Build FFmpeg command based on media type
+            $ffmpegArgs = @("-i", $action.OriginalPath, "-y")
+            
+            switch -Regex ($action.Type) {
+                "ImageConversion" {
+                    $ffmpegArgs += @("-q:v", "2", $action.NewPath)
+                }
+                "VideoConversion" {
+                    $ffmpegArgs += @("-c:v", "libx264", "-crf", "23", "-c:a", "aac", "-b:a", "128k", $action.NewPath)
+                }
+                "AudioConversion" {
+                    $ffmpegArgs += @("-c:a", "libmp3lame", "-b:a", "320k", $action.NewPath)
+                }
+            }
+            
+            # Execute FFmpeg
+            $process = Start-Process -FilePath $script:ffmpegPath -ArgumentList $ffmpegArgs -Wait -PassThru -WindowStyle Hidden -ErrorAction Stop
+            
+            if ($process.ExitCode -eq 0) {
+                Write-Message "Converted successfully" -Type Success
+                # Remove original file after successful conversion
+                Remove-Item -Path $action.OriginalPath -Force
+            } else {
+                Write-Message "Conversion failed (Exit code: $($process.ExitCode))" -Type Error
+                $errorCount++
+            }
+        }
+    } catch {
+        Write-Message "Error: $($_.Exception.Message)" -Type Error
+        $errorCount++
+    }
+}
+
+# Final summary
+Write-Message "Processing Complete" -Type Section
+Write-Message "Total files processed: $processedCount" -Type Info
+Write-Message "Successful: $($processedCount - $errorCount)" -Type Success
+if ($errorCount -gt 0) {
+    Write-Message "Errors: $errorCount" -Type Error
+} else {
+    Write-Host "All files processed successfully!" -ForegroundColor Green
+}
