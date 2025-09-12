@@ -1,4 +1,5 @@
 {
+  "workbench.colorTheme": "Deep Blue",
   "[azure-pipelines]": {
     "editor.quickSuggestions": {
       "comments": true,
@@ -10,10 +11,11 @@
     "editor.tabSize": 2
   },
   "[html]": {
-    "editor.defaultFormatter": "esbenp.prettier-vscode"
+    "editor.defaultFormatter": "vscode.html-language-features"
   },
   "[javascript]": {
-    "editor.defaultFormatter": "esbenp.prettier-vscode"
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+    "editor.tabSize": 2
   },
   "[json]": {
     "editor.defaultFormatter": "vscode.json-language-features",
@@ -47,33 +49,11 @@
     "editor.tabSize": 2
   },
   "azure-pipelines-vscode-ext.enable-semantic-highlighting": true,
-  "bicep.enableSurveys": false,
-  "cursor.composer.shouldChimeAfterChatFinishes": true,
-  "cursor.composer.usageSummaryDisplay": "always",
-  "cursor.cpp.disabledLanguages": [
-    "scminput"
-  ],
-  "cursor.general.globalCursorIgnoreList": [
-    "**/.ssh/id_*",
-    "**/*.cer",
-    "**/*.crt",
-    "**/*.key",
-    "**/*.p12",
-    "**/*.pem",
-    "**/*.pfx",
-    "**/credentials.*.json",
-    "**/credentials.json",
-    "**/id_dsa",
-    "**/id_rsa",
-    "**/secret.json",
-    "**/secrets.json"
-  ],
   "diffEditor.maxComputationTime": 0,
   "editor.autoIndent": "full",
   "editor.bracketPairColorization.enabled": true,
   "editor.codeActionsOnSave": {
     "source.fixAll": "always",
-    "source.fixAll.eslint": "always",
     "source.organizeImports": "always"
   },
   "editor.detectIndentation": false,
@@ -82,10 +62,9 @@
   "editor.formatOnType": true,
   "editor.guides.bracketPairs": "active",
   "editor.insertSpaces": true,
-  "editor.minimap.enabled": false,
   "editor.renderWhitespace": "all",
   "editor.rulers": [
-    200
+    100
   ],
   "editor.semanticHighlighting.enabled": true,
   "editor.smoothScrolling": true,
@@ -104,9 +83,6 @@
   "explorer.confirmDelete": false,
   "explorer.confirmDragAndDrop": false,
   "explorer.confirmPasteNative": false,
-  "extensions.allowed": {
-    "*": true
-  },
   "files.associations": {
     "*.yml": "yaml",
     "LICENSE": "plaintext"
@@ -120,48 +96,43 @@
   "git.openRepositoryInParentFolders": "always",
   "git.pruneOnFetch": true,
   "git.replaceTagsWhenPull": true,
-  "makefile.configureOnOpen": true,
   "markdownlint.config": {
     "default": true,
     "MD029": false,
-    "MD036": false,
-    "ignore": [
-      "CHANGELOG.md"
-    ]
+    "MD036": false
   },
-  "mypy-type-checker.importStrategy": "useBundled",
-  "mypy-type-checker.preferDaemon": true,
-  "powershell.codeFolding.enable": true,
-  "powershell.codeFormatting.alignPropertyValuePairs": true,
-  "powershell.codeFormatting.preset": "OTBS",
-  "powershell.integratedConsole.focusConsoleOnExecute": false,
-  "powershell.powerShellAdditionalExePaths": {},
   "prettier.printWidth": 100,
   "prettier.proseWrap": "always",
-  "python.createEnvironment.trigger": "off",
-  "python.languageServer": "None",
-  "python.terminal.activateEnvironment": false,
-  "python.testing.autoTestDiscoverOnSaveEnabled": true,
+  "python.languageServer": "Pylance",
   "python.testing.pytestArgs": [
     "-q"
   ],
   "python.testing.pytestEnabled": true,
   "python.testing.unittestEnabled": false,
   "redhat.telemetry.enabled": false,
-  "ruff.args": [
-    "--line-length=100"
-  ],
   "ruff.enable": true,
   "search.exclude": {
     "**/.DS_Store": true,
     "**/.pytest_cache": true,
     "**/node_modules": true
   },
-  "security.workspace.trust.enabled": true,
-  "security.workspace.trust.untrustedFiles": "newWindow",
   "terminal.integrated.defaultProfile.linux": "zsh",
   "terminal.integrated.defaultProfile.windows": "PowerShell",
-  "terminal.integrated.enableMultiLinePasteWarning": "prompt",
+  "terminal.integrated.enableMultiLinePasteWarning": "never",
+  "workbench.editor.enablePreview": false,
+  "yaml.format.enable": false,
+  "yaml.validate": true,
+  "mypy-type-checker.importStrategy": "useBundled",
+  "mypy-type-checker.preferDaemon": true,
+  "powershell.codeFolding.enable": true,
+  "powershell.codeFormatting.alignPropertyValuePairs": true,
+  "powershell.codeFormatting.preset": "OTBS",
+  "powershell.integratedConsole.focusConsoleOnExecute": false,
+  "python.createEnvironment.trigger": "off",
+  "python.terminal.activateEnvironment": false,
+  "python.testing.autoTestDiscoverOnSaveEnabled": true,
+  "security.workspace.trust.enabled": true,
+  "security.workspace.trust.untrustedFiles": "newWindow",
   "terminal.integrated.profiles.windows": {
     "PowerShell": {
       "source": "PowerShell",
@@ -176,11 +147,10 @@
     }
   },
   "terminal.integrated.shellIntegration.enabled": true,
-  "window.commandCenter": true,
-  "workbench.colorTheme": "Default Dark+",
-  "workbench.editor.enablePreview": false,
   "workbench.layoutControl.enabled": false,
   "workbench.navigationControl.enabled": false,
-  "yaml.format.enable": false,
-  "yaml.validate": true
+  "AI.toolcall.confirmMode": "autoRun",
+  "AI.task.endBanner": false,
+  "AI.toolcall.autoRun.command.denyList": "[]",
+  "AI.task.endSound": false
 }
