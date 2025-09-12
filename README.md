@@ -5,10 +5,10 @@ and DevOps tasks.
 
 ## Contents
 
-**Utils**: Contains utility scripts for various tasks.
-**Kubernetes**: Collection of Kubernetes management scripts.
-**Networking**: Network-related utilities.
-**CI/CD**: Continuous Integration and Deployment scripts.
+* **Utils**: Contains utility scripts for various tasks.
+* **Kubernetes**: Collection of Kubernetes management scripts.
+* **Networking**: Network-related utilities.
+* **CI/CD**: Continuous Integration and Deployment scripts.
 
 ## Usage
 
