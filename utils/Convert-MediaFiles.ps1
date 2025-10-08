@@ -86,6 +86,7 @@ param(
 
     [switch]$NoDelete,
 
+    [ValidateRange(1, 1024)]
     [int]$MaxParallel = [Environment]::ProcessorCount,
 
     [switch]$WhatIf
@@ -316,6 +317,9 @@ function Get-ProcessingActions {
 # Script Configuration and Initialization
 $ErrorActionPreference = "Continue"
 
+# Normalize parameters
+$MaxParallel = [Math]::Max(1, [int]$MaxParallel)
+
 # FFmpeg Discovery
 if ($env:FFMPEG_PATH -and (Test-Path $env:FFMPEG_PATH)) {
     $script:ffmpegPath = $env:FFMPEG_PATH
@@ -489,8 +493,6 @@ if (-not $Force) {
 
 # Process files
 Write-Message "Processing Files" -Type Section
-$processedCount = 0
-$errorCount = 0
 
 # Detailed counters
 $convertedCount = 0
@@ -560,16 +562,16 @@ if ($PSVersionTable.PSVersion.Major -ge 7 -and $MaxParallel -gt 1) {
     $convertedCount = (@($results) | Where-Object { $_.Success -and -not $_.Skipped -and $_.Type -ne 'Rename' }).Count
     $renamedCount = (@($results) | Where-Object { $_.Success -and $_.Type -eq 'Rename' }).Count
     $skippedCount = (@($results) | Where-Object { $_.Skipped }).Count
-    $errorCount = (@($results) | Where-Object { -not $_.Success }).Count
-    $failedCount = $errorCount
-    $processedCount = $convertedCount + $renamedCount + $skippedCount + $failedCount
+    $failedCount = (@($results) | Where-Object { -not $_.Success }).Count
 } else {
+    $index = 0
     foreach ($action in $actions) {
-        $processedCount++
+        $index++
+        $display = $index
         $fileName = Split-Path $action.OriginalPath -Leaf
 
         # Progress
-        $percent = [int](($processedCount / [double]$actions.Count) * 100)
+        $percent = [int](($display / [double]$actions.Count) * 100)
         Write-Progress -Activity "Converting media" -Status "$fileName" -PercentComplete $percent
 
         try {
@@ -578,7 +580,7 @@ if ($PSVersionTable.PSVersion.Major -ge 7 -and $MaxParallel -gt 1) {
             New-Directory -Path $outputDir
 
             if ($action.Type -eq "Rename") {
-                Write-Message "[$processedCount/$($actions.Count)] Renaming: $fileName" -Type Info
+                Write-Message "[$display/$($actions.Count)] Renaming: $fileName" -Type Info
                 Move-Item -LiteralPath $action.OriginalPath -Destination $action.NewPath -Force -ErrorAction Stop
                 Write-Message "Renamed successfully" -Type Success
                 $renamedCount++
@@ -587,12 +589,12 @@ if ($PSVersionTable.PSVersion.Major -ge 7 -and $MaxParallel -gt 1) {
                 $existing = $action.ExistingOutput
                 if (-not $existing) { $existing = Get-ExistingOutputPath -Action $action }
                 if ($existing) {
-                    Write-Message "[$processedCount/$($actions.Count)] Skipping (already exists): $(Split-Path $existing -Leaf)" -Type Warning
+                    Write-Message "[$display/$($actions.Count)] Skipping (already exists): $(Split-Path $existing -Leaf)" -Type Warning
                     $skippedCount++
                     continue
                 }
 
-                Write-Message "[$processedCount/$($actions.Count)] Converting: $fileName" -Type Info
+                Write-Message "[$display/$($actions.Count)] Converting: $fileName" -Type Info
 
                 # Build FFmpeg command based on precomputed args (fallback to function if missing)
                 $inputPath = $action.OriginalPath
@@ -622,13 +624,11 @@ if ($PSVersionTable.PSVersion.Major -ge 7 -and $MaxParallel -gt 1) {
                     } else {
                         Write-Message "Conversion failed (Exit code: $exitCode)" -Type Error
                     }
-                    $errorCount++
                     $failedCount++
                 }
             }
         } catch {
             Write-Message "Error: $($_.Exception.Message)" -Type Error
-            $errorCount++
             $failedCount++
         }
     }
