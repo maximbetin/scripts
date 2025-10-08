@@ -165,10 +165,13 @@ function Get-SourceFiles {
     if ($IncludeExtensions -and $IncludeExtensions.Count -gt 0) {
         $patterns = $IncludeExtensions | ForEach-Object { "*$_" }
         $scanPath = Join-Path $Path '*'
-        Get-ChildItem -Path $scanPath -File -Recurse:$Recurse -Include $patterns
+        $items = Get-ChildItem -Path $scanPath -File -Recurse:$Recurse -Include $patterns
     } else {
-        Get-ChildItem -Path $Path -File -Recurse:$Recurse
+        $items = Get-ChildItem -Path $Path -File -Recurse:$Recurse
     }
+
+    # Deduplicate by full path to avoid inflated counts from provider quirks
+    return $items | Sort-Object -Property FullName -Unique
 }
 
 function Get-UniqueTimestampFileName {
@@ -278,6 +281,19 @@ function Get-ProcessingActions {
 
     $mediaTypes = Get-MediaTypeConfiguration
     $sourceFiles = Get-SourceFiles -Path $SourcePath -Recurse:$Recurse -IncludeExtensions $mediaTypes.Keys
+
+    # Exclude files within DestinationPath (when it's inside SourcePath) to prevent counting outputs
+    if ($DestinationPath) {
+        try {
+            $sourceFull = (Resolve-Path -LiteralPath $SourcePath).ProviderPath
+            $destFull = (Resolve-Path -LiteralPath $DestinationPath).ProviderPath
+            if ($destFull.StartsWith($sourceFull, [System.StringComparison]::OrdinalIgnoreCase)) {
+                $sourceFiles = $sourceFiles | Where-Object { -not $_.FullName.StartsWith($destFull, [System.StringComparison]::OrdinalIgnoreCase) }
+            }
+        } catch {
+            # If resolution fails, skip exclusion to avoid false negatives
+        }
+    }
     $actions = @()
 
     foreach ($file in $sourceFiles) {
