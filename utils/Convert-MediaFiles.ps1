@@ -5,14 +5,14 @@
 .DESCRIPTION
     This PowerShell script provides a streamlined solution for organizing and converting media files.
     It scans directories for common media formats and performs the following operations:
-    
+
     • Converts images (PNG, BMP, TIFF, HEIC, etc.) to JPG format
     • Converts videos (MOV, MKV, AVI, WMV, etc.) to MP4 format with H.264 encoding
     • Converts audio files (WAV, FLAC, M4A, etc.) to MP3 format
     • Renames files to standardized format: PREFIX_YYYYMMDD_HHMMSS_mmm[_counter].ext
     • Preserves directory structure when using destination path
     • Provides progress tracking and comprehensive error handling
-    
+
     The script uses FFmpeg for all conversions and includes safety features like dry-run mode,
     confirmation prompts, and resume capability for interrupted operations.
 
@@ -62,12 +62,12 @@
     • FFmpeg must be installed and accessible
     • PowerShell 5.1 or later
     • Write permissions to source/destination directories
-    
+
     Supported Formats:
     • Images: JPG, JPEG, PNG, BMP, TIFF, HEIC, WEBP, AVIF → JPG
     • Videos: MP4, MOV, MKV, AVI, WMV, WEBM, OGV → MP4 (H.264, AAC audio)
     • Audio: MP3, WAV, FLAC, M4A, WEBA, OGG, OPUS → MP3 (320kbps)
-    
+
     Author: Media Conversion Script
     Version: 2.1
     Last Updated: 2025
@@ -75,19 +75,19 @@
 param(
     [ValidateScript({ Test-Path $_ -PathType Container })]
     [string]$SourcePath = (Get-Location).Path,
-    
+
     [string]$DestinationPath,
-    
+
     [switch]$Recurse,
-    
+
     [switch]$Rename,
-    
+
     [switch]$Force,
-    
+
     [switch]$NoDelete,
-    
+
     [int]$MaxParallel = [Environment]::ProcessorCount,
-    
+
     [switch]$WhatIf
 )
 
@@ -96,14 +96,14 @@ function Get-ShortPath {
         [string]$InputPath = "",
         [int]$MaxLength = 100
     )
-    
+
     if ([string]::IsNullOrEmpty($InputPath) -or $InputPath.Length -le $MaxLength) {
         return $InputPath
     }
-    
+
     $prefixLength = [Math]::Floor($MaxLength / 2.5)
     $suffixLength = $MaxLength - $prefixLength - 3
-    
+
     return $InputPath.Substring(0, $prefixLength) + '...' + $InputPath.Substring($InputPath.Length - $suffixLength)
 }
 
@@ -114,7 +114,7 @@ function Write-Message {
         [ValidateSet('Section', 'Info', 'Success', 'Warning', 'Error')]
         [string]$Type = 'Info'
     )
-    
+
     switch ($Type) {
         'Section' {
             Write-Host ""
@@ -161,7 +161,7 @@ function Get-SourceFiles {
         [switch]$Recurse,
         [string[]]$IncludeExtensions
     )
-    
+
     if ($IncludeExtensions -and $IncludeExtensions.Count -gt 0) {
         $patterns = $IncludeExtensions | ForEach-Object { "*$_" }
         $scanPath = Join-Path $Path '*'
@@ -182,17 +182,17 @@ function Get-UniqueTimestampFileName {
         [Parameter(Mandatory)]
         [string]$OutputDirectory
     )
-    
+
     $timestamp = $OriginalFile.LastWriteTime.ToString("yyyyMMdd_HHmmss_fff")
     $baseName = "${Prefix}_$timestamp"
     $newPath = Join-Path $OutputDirectory "$baseName$TargetExtension"
-    
+
     $counter = 1
     while (Test-Path $newPath) {
         $newPath = Join-Path $OutputDirectory "${baseName}_${counter}${TargetExtension}"
         $counter++
     }
-    
+
     return $newPath
 }
 
@@ -207,11 +207,11 @@ function New-ProcessingAction {
         [string]$DestinationPath,
         [switch]$Rename
     )
-    
+
     $extension = $File.Extension.ToLower()
     $isCorrectFormat = ($extension -eq $MediaInfo.Target)
     $isStandardName = $File.Name -match '^(IMG|VID|AUD)_\d{8}_\d{6}_\d{3}(_\d+)?\.[^.]+$'
-    
+
     $outputDirectory = if ([string]::IsNullOrEmpty($DestinationPath)) {
         $File.DirectoryName
     } else {
@@ -220,7 +220,7 @@ function New-ProcessingAction {
         $relativePath = $fileDirectoryPath.Substring($sourceFullPath.Length).TrimStart('\\')
         Join-Path $DestinationPath $relativePath
     }
-    
+
     # Determine base name and base path depending on -Rename
     if ($Rename) {
         $timestamp = $File.LastWriteTime.ToString("yyyyMMdd_HHmmss_fff")
@@ -243,9 +243,9 @@ function New-ProcessingAction {
             $counter++
         }
     }
-    
+
     if (-not $isCorrectFormat) {
-        return @{ 
+        return @{
             Type         = "${($MediaInfo.Type)}Conversion"
             OriginalPath = $File.FullName
             NewPath      = $newPath
@@ -257,13 +257,13 @@ function New-ProcessingAction {
         } else {
             $newPath
         }
-        return @{ 
+        return @{
             Type         = "Rename"
             OriginalPath = $File.FullName
-            NewPath      = $renamePath 
+            NewPath      = $renamePath
         }
     }
-    
+
     return $null
 }
 
@@ -275,11 +275,11 @@ function Get-ProcessingActions {
         [switch]$Recurse,
         [switch]$Rename
     )
-    
+
     $mediaTypes = Get-MediaTypeConfiguration
     $sourceFiles = Get-SourceFiles -Path $SourcePath -Recurse:$Recurse -IncludeExtensions $mediaTypes.Keys
     $actions = @()
-    
+
     foreach ($file in $sourceFiles) {
         $extension = $file.Extension.ToLower()
         if ($mediaTypes.ContainsKey($extension)) {
@@ -293,7 +293,7 @@ function Get-ProcessingActions {
             }
         }
     }
-    
+
     return $actions
 }
 
@@ -442,7 +442,7 @@ if ($WhatIf) {
         $action = $actions[$i]
         $from = Get-ShortPath -InputPath $action.OriginalPath -MaxLength 100
         $to = Get-ShortPath -InputPath $action.NewPath -MaxLength 100
-        
+
         if ($action.Type -eq "Rename") {
             Write-Message ("[{0,3}] WOULD RENAME" -f ($i + 1)) -Type Info
         } else {
@@ -496,7 +496,7 @@ if ($PSVersionTable.PSVersion.Major -ge 7 -and $MaxParallel -gt 1) {
 
                 $inputPath = $action.OriginalPath
                 $outputPath = $action.NewPath
-                
+
                 # Prefer precomputed FFmpeg args; fall back to minimal construction if missing
                 $ffmpegArgs = $action.FFmpegArgs
                 if (-not $ffmpegArgs) {
@@ -535,16 +535,16 @@ if ($PSVersionTable.PSVersion.Major -ge 7 -and $MaxParallel -gt 1) {
     foreach ($action in $actions) {
         $processedCount++
         $fileName = Split-Path $action.OriginalPath -Leaf
-        
+
         # Progress
         $percent = [int](($processedCount / [double]$actions.Count) * 100)
         Write-Progress -Activity "Converting media" -Status "$fileName" -PercentComplete $percent
-        
+
         try {
             # Ensure output directory exists
             $outputDir = Split-Path $action.NewPath -Parent
             New-Directory -Path $outputDir
-            
+
             if ($action.Type -eq "Rename") {
                 Write-Message "[$processedCount/$($actions.Count)] Renaming: $fileName" -Type Info
                 Move-Item -LiteralPath $action.OriginalPath -Destination $action.NewPath -Force -ErrorAction Stop
@@ -559,7 +559,7 @@ if ($PSVersionTable.PSVersion.Major -ge 7 -and $MaxParallel -gt 1) {
                 }
 
                 Write-Message "[$processedCount/$($actions.Count)] Converting: $fileName" -Type Info
-                
+
                 # Build FFmpeg command based on precomputed args (fallback to function if missing)
                 $inputPath = $action.OriginalPath
                 $outputPath = $action.NewPath
@@ -567,14 +567,14 @@ if ($PSVersionTable.PSVersion.Major -ge 7 -and $MaxParallel -gt 1) {
                 if (-not $ffmpegArgs) {
                     $ffmpegArgs = Get-FFmpegArgs -ActionType $action.Type -InputPath $inputPath -OutputPath $outputPath
                 }
-                
+
                 # Execute FFmpeg (direct invocation ensures proper quoting of args)
                 & $script:ffmpegPath @ffmpegArgs
                 $exitCode = $LASTEXITCODE
-                
+
                 if ($exitCode -eq 0 -and (Test-Path -LiteralPath $outputPath) -and ((Get-Item -LiteralPath $outputPath).Length -gt 0)) {
                     Write-Message "Converted successfully" -Type Success
-                    
+
                     if (-not $NoDelete) {
                         # Remove original file after successful conversion
                         Remove-Item -LiteralPath $action.OriginalPath -Force -ErrorAction Stop
