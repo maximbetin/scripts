@@ -64,7 +64,7 @@ param(
 
 function Test-UrlFormat {
     param([string]$Url)
-    
+
     try {
         $uri = [System.Uri]$Url
         return $uri.Scheme -in @('http', 'https', 'ftp')
@@ -75,7 +75,7 @@ function Test-UrlFormat {
 
 function Get-FileExtension {
     param([string]$Url)
-    
+
     try {
         $uri = [System.Uri]$Url
         $extension = [System.IO.Path]::GetExtension($uri.LocalPath)
@@ -87,7 +87,7 @@ function Get-FileExtension {
 
 function Get-FileTypeCategory {
     param([string]$Extension)
-    
+
     $fileCategories = @{
         'Audio'        = @('.mp3', '.wav', '.flac', '.aac', '.ogg', '.wma', '.m4a')
         'Video'        = @('.mp4', '.avi', '.mkv', '.mov', '.wmv', '.flv', '.webm', '.m4v')
@@ -99,7 +99,7 @@ function Get-FileTypeCategory {
         'Code'         = @('.js', '.html', '.css', '.py', '.java', '.cpp', '.c', '.cs', '.php')
         'Data'         = @('.json', '.xml', '.yaml', '.sql', '.db', '.sqlite')
     }
-    
+
     foreach ($category in $fileCategories.Keys) {
         if ($Extension -in $fileCategories[$category]) {
             return $category
@@ -113,19 +113,19 @@ function Get-SafeFileName {
         [string]$Url,
         [int]$Index = 0
     )
-    
+
     $extension = Get-FileExtension $Url
     $uri = [System.Uri]$Url
     $originalName = [System.IO.Path]::GetFileNameWithoutExtension($uri.LocalPath)
-    
+
     if ([string]::IsNullOrWhiteSpace($originalName)) {
         $originalName = "file"
     }
-    
+
     # Sanitize filename
     $invalidChars = [System.IO.Path]::GetInvalidFileNameChars() -join ''
     $originalName = $originalName -replace "[$invalidChars]", '_'
-    
+
     switch ($NamingPattern) {
         'original' { return "$originalName$extension" }
         'sequential' { return "{0:D4}_{1}{2}" -f $Index, $originalName, $extension }
@@ -140,7 +140,7 @@ function Get-SafeFileName {
 
 function Format-FileSize {
     param([long]$Size)
-    
+
     if ($Size -gt 1GB) { return "{0:N2} GB" -f ($Size / 1GB) }
     elseif ($Size -gt 1MB) { return "{0:N2} MB" -f ($Size / 1MB) }
     elseif ($Size -gt 1KB) { return "{0:N2} KB" -f ($Size / 1KB) }
@@ -154,13 +154,13 @@ function Invoke-FileDownload {
         [int]$FileIndex,
         [int]$TotalFiles
     )
-    
+
     $fileName = Split-Path $OutputPath -Leaf
     $attempt = 0
-    
+
     while ($attempt -lt $MaxRetries) {
         $attempt++
-        
+
         try {
             # Display progress
             if ($attempt -gt 1) {
@@ -168,17 +168,17 @@ function Invoke-FileDownload {
             } else {
                 Write-Host "[$FileIndex/$TotalFiles] Downloading: $fileName" -ForegroundColor Cyan
             }
-            
+
             # Configure security protocols
             [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 -bor [Net.SecurityProtocolType]::Tls13
-            
+
             # Download with modern headers
             $headers = @{
                 'User-Agent' = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
             }
-            
+
             Invoke-WebRequest -Uri $Url -OutFile $OutputPath -Headers $headers -TimeoutSec 30 -UseBasicParsing
-            
+
             # Validate download
             if ($ValidateFiles -and (Test-Path $OutputPath)) {
                 $fileInfo = Get-Item $OutputPath
@@ -190,20 +190,20 @@ function Invoke-FileDownload {
             } else {
                 Write-Host "  ✓ Downloaded: $fileName" -ForegroundColor Green
             }
-            
+
             return $true
         } catch {
             Write-Host "  ✗ Attempt $attempt failed: $($_.Exception.Message)" -ForegroundColor Red
-            
+
             if ($attempt -eq $MaxRetries) {
                 Write-Host "  ✗ All retry attempts failed for: $fileName" -ForegroundColor Red
                 return $false
             }
-            
+
             Start-Sleep -Seconds (2 * $attempt)  # Exponential backoff
         }
     }
-    
+
     return $false
 }
 
@@ -215,7 +215,7 @@ function New-DownloadReport {
         [int]$Failed,
         [long]$TotalSize
     )
-    
+
     $reportPath = Join-Path $OutputDirectory "download_report.txt"
     $report = @(
         "Universal File Downloader Report",
@@ -229,9 +229,9 @@ function New-DownloadReport {
         "",
         "Downloaded files:"
     )
-    
-    Get-ChildItem -Path $OutputDirectory -Recurse -File | 
-    Where-Object { $_.Name -ne "download_report.txt" } | 
+
+    Get-ChildItem -Path $OutputDirectory -Recurse -File |
+    Where-Object { $_.Name -ne "download_report.txt" } |
     ForEach-Object {
         $relativePath = $_.FullName.Substring($OutputDirectory.Length).TrimStart('\', '/')
         if ([string]::IsNullOrEmpty($relativePath)) {
@@ -239,7 +239,7 @@ function New-DownloadReport {
         }
         $report += "- $relativePath ($(Format-FileSize $_.Length))"
     }
-    
+
     $report | Out-File -FilePath $reportPath -Encoding UTF8
     Write-Host "Download report created: $reportPath" -ForegroundColor Cyan
 }
@@ -279,18 +279,18 @@ $index = 1
 
 foreach ($url in $allUrls) {
     $url = $url.Trim()
-    
+
     if ([string]::IsNullOrWhiteSpace($url) -or $url.StartsWith('#')) {
         continue
     }
-    
+
     if (-not (Test-UrlFormat $url)) {
         Write-Warning "Invalid URL format: $url"
         continue
     }
-    
+
     $fileName = Get-SafeFileName -Url $url -Index $index
-    
+
     # Determine output location
     $outputDir = $OutputDirectory
     if ($OrganizeByType) {
@@ -298,15 +298,15 @@ foreach ($url in $allUrls) {
         $category = Get-FileTypeCategory $extension
         $outputDir = Join-Path $OutputDirectory $category
     }
-    
+
     $outputPath = Join-Path $outputDir $fileName
-    
+
     # Skip existing files if resume is enabled
     if ($Resume -and (Test-Path $outputPath)) {
         Write-Host "  ⏭️ Skipping existing file: $fileName" -ForegroundColor Yellow
         continue
     }
-    
+
     $downloadQueue += [PSCustomObject]@{
         Url        = $url
         OutputPath = $outputPath
@@ -314,7 +314,7 @@ foreach ($url in $allUrls) {
         FileName   = $fileName
         Index      = $index
     }
-    
+
     $index++
 }
 
@@ -347,7 +347,7 @@ Write-Host ""
 
 foreach ($download in $downloadQueue) {
     $success = Invoke-FileDownload -Url $download.Url -OutputPath $download.OutputPath -FileIndex $download.Index -TotalFiles $downloadQueue.Count
-    
+
     if ($success) {
         $stats.Successful++
         if (Test-Path $download.OutputPath) {
