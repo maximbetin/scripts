@@ -359,7 +359,10 @@ function Test-FFmpegCapabilities {
         $result.SupportsHeic = ($hasHeif -and $hasHevcDec)
         $result.SupportsAvif = ($hasHeif -and $hasAv1Dec)
     } catch {
-        # If probing fails, leave as true to avoid false negatives
+        # If probing fails, default to no support to avoid noisy failures
+        $result.SupportsHeifDemuxer = $false
+        $result.SupportsHeic = $false
+        $result.SupportsAvif = $false
     }
     return $result
 }
@@ -489,6 +492,12 @@ Write-Message "Processing Files" -Type Section
 $processedCount = 0
 $errorCount = 0
 
+# Detailed counters
+$convertedCount = 0
+$renamedCount = 0
+$skippedCount = 0
+$failedCount = 0
+
 if ($PSVersionTable.PSVersion.Major -ge 7 -and $MaxParallel -gt 1) {
     Write-Message "Processing in parallel with up to $MaxParallel workers..." -Type Info
     $ffmpegPathLocal = $script:ffmpegPath
@@ -505,6 +514,8 @@ if ($PSVersionTable.PSVersion.Major -ge 7 -and $MaxParallel -gt 1) {
 
             if ($action.Type -eq "Rename") {
                 Move-Item -LiteralPath $action.OriginalPath -Destination $action.NewPath -Force -ErrorAction Stop
+                [pscustomobject]@{ Success = $true; Type = 'Rename'; OriginalPath = $action.OriginalPath; OutputPath = $action.NewPath }
+                return
             } else {
                 # Resume: skip if output already exists (precomputed at planning stage)
                 $existingOutput = $action.ExistingOutput
@@ -545,8 +556,13 @@ if ($PSVersionTable.PSVersion.Major -ge 7 -and $MaxParallel -gt 1) {
         }
     } -ThrottleLimit $MaxParallel
 
-    $processedCount = $actions.Count
+    # Aggregate results
+    $convertedCount = (@($results) | Where-Object { $_.Success -and -not $_.Skipped -and $_.Type -ne 'Rename' }).Count
+    $renamedCount = (@($results) | Where-Object { $_.Success -and $_.Type -eq 'Rename' }).Count
+    $skippedCount = (@($results) | Where-Object { $_.Skipped }).Count
     $errorCount = (@($results) | Where-Object { -not $_.Success }).Count
+    $failedCount = $errorCount
+    $processedCount = $convertedCount + $renamedCount + $skippedCount + $failedCount
 } else {
     foreach ($action in $actions) {
         $processedCount++
@@ -565,12 +581,14 @@ if ($PSVersionTable.PSVersion.Major -ge 7 -and $MaxParallel -gt 1) {
                 Write-Message "[$processedCount/$($actions.Count)] Renaming: $fileName" -Type Info
                 Move-Item -LiteralPath $action.OriginalPath -Destination $action.NewPath -Force -ErrorAction Stop
                 Write-Message "Renamed successfully" -Type Success
+                $renamedCount++
             } else {
                 # Resume: skip if output already exists
                 $existing = $action.ExistingOutput
                 if (-not $existing) { $existing = Get-ExistingOutputPath -Action $action }
                 if ($existing) {
                     Write-Message "[$processedCount/$($actions.Count)] Skipping (already exists): $(Split-Path $existing -Leaf)" -Type Warning
+                    $skippedCount++
                     continue
                 }
 
@@ -590,6 +608,7 @@ if ($PSVersionTable.PSVersion.Major -ge 7 -and $MaxParallel -gt 1) {
 
                 if ($exitCode -eq 0 -and (Test-Path -LiteralPath $outputPath) -and ((Get-Item -LiteralPath $outputPath).Length -gt 0)) {
                     Write-Message "Converted successfully" -Type Success
+                    $convertedCount++
 
                     if (-not $NoDelete) {
                         # Remove original file after successful conversion
@@ -604,11 +623,13 @@ if ($PSVersionTable.PSVersion.Major -ge 7 -and $MaxParallel -gt 1) {
                         Write-Message "Conversion failed (Exit code: $exitCode)" -Type Error
                     }
                     $errorCount++
+                    $failedCount++
                 }
             }
         } catch {
             Write-Message "Error: $($_.Exception.Message)" -Type Error
             $errorCount++
+            $failedCount++
         }
     }
     Write-Progress -Activity "Converting media" -Completed
@@ -616,10 +637,12 @@ if ($PSVersionTable.PSVersion.Major -ge 7 -and $MaxParallel -gt 1) {
 
 # Final summary
 Write-Message "Processing Complete" -Type Section
-Write-Message "Total files processed: $processedCount" -Type Info
-Write-Message "Successful: $($processedCount - $errorCount)" -Type Success
-if ($errorCount -gt 0) {
-    Write-Message "Errors: $errorCount" -Type Error
+Write-Message "Planned actions: $($actions.Count)" -Type Info
+Write-Message "Converted: $convertedCount" -Type Success
+Write-Message "Renamed: $renamedCount" -Type Success
+Write-Message "Skipped (existing): $skippedCount" -Type Warning
+if ($failedCount -gt 0) {
+    Write-Message "Failed: $failedCount" -Type Error
 } else {
     Write-Message "All files processed successfully!" -Type Success
 }
