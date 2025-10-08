@@ -1,17 +1,11 @@
 {
-  "workbench.colorTheme": "Deep Blue",
-  "[azure-pipelines]": {
-    "editor.quickSuggestions": {
-      "comments": true,
-      "other": true,
-      "strings": true
-    }
-  },
   "[helm]": {
+    "editor.defaultFormatter": "ms-kubernetes-tools.vscode-kubernetes-tools",
     "editor.tabSize": 2
   },
   "[html]": {
-    "editor.defaultFormatter": "vscode.html-language-features"
+    "editor.defaultFormatter": "vscode.html-language-features",
+    "editor.tabSize": 2
   },
   "[javascript]": {
     "editor.defaultFormatter": "esbenp.prettier-vscode",
@@ -26,15 +20,15 @@
     "editor.tabSize": 2
   },
   "[markdown]": {
-    "editor.defaultFormatter": "DavidAnson.vscode-markdownlint",
-    "editor.tabSize": 2,
-    "editor.wordWrap": "bounded",
-    "editor.wordWrapColumn": 200
+    "editor.defaultFormatter": "yzhang.markdown-all-in-one",
+    "editor.tabSize": 2
   },
   "[powershell]": {
-    "editor.defaultFormatter": "ms-vscode.powershell"
+    "editor.defaultFormatter": "ms-vscode.powershell",
+    "editor.tabSize": 4
   },
   "[python]": {
+    "editor.tabSize": 4,
     "editor.codeActionsOnSave": {
       "source.fixAll.ruff": "always",
       "source.organizeImports.ruff": "always"
@@ -42,18 +36,19 @@
     "editor.defaultFormatter": "charliermarsh.ruff"
   },
   "[typescript]": {
+    "editor.tabSize": 2,
     "editor.defaultFormatter": "esbenp.prettier-vscode"
   },
   "[yaml]": {
     "editor.defaultFormatter": "esbenp.prettier-vscode",
     "editor.tabSize": 2
   },
-  "azure-pipelines-vscode-ext.enable-semantic-highlighting": true,
   "diffEditor.maxComputationTime": 0,
   "editor.autoIndent": "full",
   "editor.bracketPairColorization.enabled": true,
   "editor.codeActionsOnSave": {
     "source.fixAll": "always",
+    "source.fixAll.eslint": "always",
     "source.organizeImports": "always"
   },
   "editor.detectIndentation": false,
@@ -62,14 +57,14 @@
   "editor.formatOnType": true,
   "editor.guides.bracketPairs": "active",
   "editor.insertSpaces": true,
+  "editor.minimap.enabled": false,
   "editor.renderWhitespace": "all",
   "editor.rulers": [
-    100
+    200
   ],
   "editor.semanticHighlighting.enabled": true,
   "editor.smoothScrolling": true,
   "editor.stickyScroll.enabled": true,
-  "editor.tabSize": 4,
   "editor.wordWrap": "bounded",
   "editor.wordWrapColumn": 100,
   "editor.wrappingStrategy": "advanced",
@@ -83,6 +78,9 @@
   "explorer.confirmDelete": false,
   "explorer.confirmDragAndDrop": false,
   "explorer.confirmPasteNative": false,
+  "extensions.allowed": {
+    "*": true
+  },
   "files.associations": {
     "*.yml": "yaml",
     "LICENSE": "plaintext"
@@ -96,43 +94,51 @@
   "git.openRepositoryInParentFolders": "always",
   "git.pruneOnFetch": true,
   "git.replaceTagsWhenPull": true,
+  "makefile.configureOnOpen": true,
   "markdownlint.config": {
     "default": true,
     "MD029": false,
-    "MD036": false
+    "MD036": false,
+    "MD024": false,
+    "MD025": false,
+    "ignore": [
+      "CHANGELOG.md"
+    ]
   },
+  "mypy-type-checker.importStrategy": "useBundled",
+  "mypy-type-checker.preferDaemon": true,
+  "editor.trimAutoWhitespace": true,
+  "powershell.codeFolding.enable": true,
+  "powershell.codeFormatting.alignPropertyValuePairs": true,
+  "powershell.codeFormatting.preset": "OTBS",
+  "powershell.integratedConsole.focusConsoleOnExecute": false,
+  "powershell.powerShellAdditionalExePaths": {},
   "prettier.printWidth": 100,
   "prettier.proseWrap": "always",
-  "python.languageServer": "Pylance",
+  "python.createEnvironment.trigger": "off",
+  "python.languageServer": "None",
+  "python.terminal.activateEnvironment": false,
+  "python.testing.autoTestDiscoverOnSaveEnabled": true,
   "python.testing.pytestArgs": [
     "-q"
   ],
   "python.testing.pytestEnabled": true,
   "python.testing.unittestEnabled": false,
   "redhat.telemetry.enabled": false,
+  "ruff.args": [
+    "--line-length=100"
+  ],
   "ruff.enable": true,
   "search.exclude": {
     "**/.DS_Store": true,
     "**/.pytest_cache": true,
     "**/node_modules": true
   },
+  "security.workspace.trust.enabled": true,
+  "security.workspace.trust.untrustedFiles": "newWindow",
   "terminal.integrated.defaultProfile.linux": "zsh",
   "terminal.integrated.defaultProfile.windows": "PowerShell",
   "terminal.integrated.enableMultiLinePasteWarning": "never",
-  "workbench.editor.enablePreview": false,
-  "yaml.format.enable": false,
-  "yaml.validate": true,
-  "mypy-type-checker.importStrategy": "useBundled",
-  "mypy-type-checker.preferDaemon": true,
-  "powershell.codeFolding.enable": true,
-  "powershell.codeFormatting.alignPropertyValuePairs": true,
-  "powershell.codeFormatting.preset": "OTBS",
-  "powershell.integratedConsole.focusConsoleOnExecute": false,
-  "python.createEnvironment.trigger": "off",
-  "python.terminal.activateEnvironment": false,
-  "python.testing.autoTestDiscoverOnSaveEnabled": true,
-  "security.workspace.trust.enabled": true,
-  "security.workspace.trust.untrustedFiles": "newWindow",
   "terminal.integrated.profiles.windows": {
     "PowerShell": {
       "source": "PowerShell",
@@ -147,10 +153,11 @@
     }
   },
   "terminal.integrated.shellIntegration.enabled": true,
+  "window.commandCenter": true,
+  "workbench.colorTheme": "Default Dark+",
+  "workbench.editor.enablePreview": false,
   "workbench.layoutControl.enabled": false,
   "workbench.navigationControl.enabled": false,
-  "AI.toolcall.confirmMode": "autoRun",
-  "AI.task.endBanner": false,
-  "AI.toolcall.autoRun.command.denyList": "[]",
-  "AI.task.endSound": false
+  "yaml.format.enable": false,
+  "yaml.validate": true
 }
