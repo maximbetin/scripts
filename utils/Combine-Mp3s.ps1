@@ -5,8 +5,8 @@
 # Usage: .\Combine-Mp3.ps1 -InputFolder "C:\Music" -OutputFile "C:\Combined\output.mp3"
 
 param (
-    [Parameter(Mandatory = $true)]
-    [string]$InputFolder,
+    [Parameter(Mandatory = $false)]
+    [string]$InputFolder = ".",
 
     [Parameter(Mandatory = $true)]
     [string]$OutputFile
@@ -18,8 +18,8 @@ if (-not (Test-Path $InputFolder)) {
     exit 1
 }
 
-# Get all MP3 files sorted alphabetically
-$mp3Files = Get-ChildItem -Path $InputFolder -Filter *.mp3 | Sort-Object Name
+# Get all MP3 files sorted naturally by name (1, 2, 3... instead of 1, 10, 11...)
+$mp3Files = Get-ChildItem -Path $InputFolder -Filter *.mp3 | Sort-Object { [regex]::Replace($_.Name, '\d+', { $args[0].Value.PadLeft(20) }) }
 if ($mp3Files.Count -eq 0) {
     Write-Error "No MP3 files found in $InputFolder"
     exit 1
@@ -27,7 +27,7 @@ if ($mp3Files.Count -eq 0) {
 
 # Prepare output directory
 $outDir = Split-Path $OutputFile -Parent
-if (-not (Test-Path $outDir)) {
+if ($outDir -and -not (Test-Path $outDir)) {
     New-Item -ItemType Directory -Path $outDir | Out-Null
 }
 
@@ -61,9 +61,14 @@ if ($coverArt) {
     $tempFile = "$OutputFile.temp.mp3"
 
     # Use ffmpeg to add cover art and metadata
+    # Ensure paths are properly quoted for ffmpeg
+    $outputFullPath = (Resolve-Path $OutputFile).Path
+    $coverFullPath = (Resolve-Path $coverArt).Path
+    $tempFullPath = Join-Path (Split-Path $outputFullPath -Parent) "temp_$(Split-Path $outputFullPath -Leaf)"
+
     $ffmpegArgs = @(
-        "-i", $OutputFile,
-        "-i", $coverArt,
+        "-i", $outputFullPath,
+        "-i", $coverFullPath,
         "-map", "0:a",
         "-map", "1:0",
         "-c", "copy",
@@ -75,20 +80,20 @@ if ($coverArt) {
         "-metadata:s:v", "title=Album cover",
         "-metadata:s:v", "comment=Cover (front)",
         "-y",
-        $tempFile
+        $tempFullPath
     )
 
     $process = Start-Process -FilePath "ffmpeg" -ArgumentList $ffmpegArgs -NoNewWindow -Wait -PassThru
 
     if ($process.ExitCode -eq 0) {
         # Replace original with the one that has cover art
-        Remove-Item $OutputFile
-        Move-Item $tempFile $OutputFile
+        Remove-Item $outputFullPath
+        Move-Item $tempFullPath $outputFullPath
         Write-Host "Cover art embedded successfully."
     } else {
         Write-Warning "Failed to embed cover art. ffmpeg returned exit code $($process.ExitCode)"
-        if (Test-Path $tempFile) {
-            Remove-Item $tempFile
+        if (Test-Path $tempFullPath) {
+            Remove-Item $tempFullPath
         }
     }
 }
