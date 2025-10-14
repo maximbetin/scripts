@@ -17,15 +17,15 @@
     File pattern to match. Defaults to "*.mp3".
 
 .EXAMPLE
-    .\Combine-Mp3s.ps1
+    .\Combine-MP3s.ps1
     Combines all MP3 files in the current directory into "combined.mp3"
 
 .EXAMPLE
-    .\Combine-Mp3s.ps1 -InputPath "C:\Podcasts" -OutputFile "podcast-series.mp3"
+    .\Combine-MP3s.ps1 -InputPath "C:\Podcasts" -OutputFile "podcast-series.mp3"
     Combines all MP3 files from C:\Podcasts into "podcast-series.mp3"
 
 .EXAMPLE
-    .\Combine-Mp3s.ps1 -Pattern "episode*.mp3"
+    .\Combine-MP3s.ps1 -Pattern "episode*.mp3"
     Combines only MP3 files matching "episode*.mp3" pattern
 #>
 
