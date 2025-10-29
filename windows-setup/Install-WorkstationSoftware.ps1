@@ -58,12 +58,6 @@ $packages = @(
   # Common runtimes and dependencies
   @{ Name = 'VC++ 2015-2022 Redistributable (x64)'; Id = 'Microsoft.VCRedist.2015+.x64' },
   @{ Name = 'VC++ 2015-2022 Redistributable (x86)'; Id = 'Microsoft.VCRedist.2015+.x86' },
-  @{ Name = 'VC++ 2013 Redistributable (x64)'; Id = 'Microsoft.VCRedist.2013.x64' },
-  @{ Name = 'VC++ 2013 Redistributable (x86)'; Id = 'Microsoft.VCRedist.2013.x86' },
-  @{ Name = 'VC++ 2012 Redistributable (x64)'; Id = 'Microsoft.VCRedist.2012.x64' },
-  @{ Name = 'VC++ 2012 Redistributable (x86)'; Id = 'Microsoft.VCRedist.2012.x86' },
-  @{ Name = 'VC++ 2010 Redistributable (x64)'; Id = 'Microsoft.VCRedist.2010.x64' },
-  @{ Name = 'VC++ 2010 Redistributable (x86)'; Id = 'Microsoft.VCRedist.2010.x86' },
   @{ Name = '.NET Desktop Runtime 8 (x64)'; Id = 'Microsoft.DotNet.DesktopRuntime.8' },
   @{ Name = 'DirectX End-User Runtimes'; Id = 'Microsoft.DirectX' },
   @{ Name = 'Microsoft Edge WebView2 Runtime'; Id = 'Microsoft.EdgeWebView2Runtime' },
