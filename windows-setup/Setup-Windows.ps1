@@ -3,6 +3,7 @@ param(
   [string]$ChocoPackageListPath = "$PSScriptRoot/choco-packages.txt",
   [string]$ManualInstallerManifestPath = "$PSScriptRoot/manual-installers.json",
   [string]$InventoryPath = "$PSScriptRoot/installed-software.json",
+  [switch]$UsePackageManifests,
   [string]$ManualStepsPath = "$PSScriptRoot/manual-steps.md"
 )
 
@@ -59,7 +60,14 @@ function Import-WingetPackages {
     return
   }
   Write-Host "Installing packages defined in $(Resolve-Path $ManifestPath)." -ForegroundColor Cyan
-  & winget import --input "$ManifestPath" --accept-package-agreements --accept-source-agreements
+  try {
+    & winget import --input "$ManifestPath" --accept-package-agreements --accept-source-agreements
+    if ($LASTEXITCODE -ne 0) {
+      Write-Warning "winget import exited with code $LASTEXITCODE"
+    }
+  } catch {
+    Write-Warning "winget import failed: $_"
+  }
 }
 
 function Install-WingetPackage {
@@ -87,8 +95,39 @@ function Install-WingetPackage {
       return $true
     }
     Write-Warning "winget install for $Identifier exited with code $LASTEXITCODE"
+    Start-Sleep -Seconds 2
+    & winget @arguments
+    if ($LASTEXITCODE -eq 0) {
+      return $true
+    }
+    Write-Warning "winget retry install for $Identifier exited with code $LASTEXITCODE"
   } catch {
     Write-Warning "winget install for $Identifier failed: $_"
+  }
+  return $false
+}
+
+function Install-WingetPackageByExactName {
+  param(
+    [string]$Name,
+    [string]$PreferredSource
+  )
+  if (-not $Name) { return $false }
+  $sourcesToTry = @()
+  if ($PreferredSource) { $sourcesToTry += $PreferredSource }
+  $sourcesToTry += @('winget', 'msstore', $null)
+  foreach ($src in ($sourcesToTry | Select-Object -Unique)) {
+    $displaySrc = if ($src) { $src } else { 'auto' }
+    Write-Host "Trying winget exact-name install [$displaySrc]: $Name" -ForegroundColor Cyan
+    $args = @('install', '--name', $Name, '--exact', '--accept-package-agreements', '--accept-source-agreements', '--disable-interactivity')
+    if ($src) { $args += @('--source', $src) }
+    try {
+      & winget @args
+      if ($LASTEXITCODE -eq 0) { return $true }
+      Write-Verbose "winget exact-name install for '$Name' [$displaySrc] exited with code $LASTEXITCODE"
+    } catch {
+      Write-Verbose "winget exact-name install for '$Name' [$displaySrc] failed: $_"
+    }
   }
   return $false
 }
@@ -110,6 +149,12 @@ function Install-ChocolateyPackageFromInventory {
       return $true
     }
     Write-Warning "Chocolatey upgrade for $Identifier exited with code $LASTEXITCODE"
+    Start-Sleep -Seconds 2
+    choco upgrade $Identifier -y
+    if ($LASTEXITCODE -eq 0) {
+      return $true
+    }
+    Write-Warning "Chocolatey retry upgrade for $Identifier exited with code $LASTEXITCODE"
   } catch {
     Write-Warning "Chocolatey upgrade for $Identifier failed: $_"
   }
@@ -177,16 +222,25 @@ function Install-InventorySoftware {
       continue
     }
     $appxInfos = $sourceInfos | Where-Object { $_.Type -eq 'Appx' }
+    if (-not $appxInfos) {
+      $preferredWingetSource = ($sourceInfos | Where-Object { $_.Type -eq 'Winget' -and $_.Source } | Select-Object -First 1).Source
+      if (Install-WingetPackageByExactName -Name $entry.Name -PreferredSource $preferredWingetSource) {
+        $handled = $true
+      }
+    }
+    if ($handled) { continue }
     if ($appxInfos) {
       $manualFollowUp += [PSCustomObject]@{
-        Name   = $entry.Name
-        Reason = 'Appx/Microsoft Store package. Reinstall via Microsoft Store or OEM channel.'
+        Name      = $entry.Name
+        Reason    = 'Appx/Microsoft Store package.'
+        Suggested = "Open Microsoft Store and search: $($entry.Name) or try: winget install --exact --name `"$($entry.Name)`" --source msstore"
       }
       continue
     }
     $manualFollowUp += [PSCustomObject]@{
-      Name   = $entry.Name
-      Reason = 'No install source detected. Reinstall manually.'
+      Name      = $entry.Name
+      Reason    = 'No install source detected.'
+      Suggested = "Try: winget install --exact --name `"$($entry.Name)`"; if not found: choco search `"$($entry.Name)`" and choco install <pkg>"
     }
   }
   return $manualFollowUp
@@ -250,14 +304,16 @@ function Write-ManualFollowUps {
     return
   }
   Write-Host "Manual follow-up required for the following entries:" -ForegroundColor Yellow
-  $Items | Sort-Object Name | Format-Table Name, Reason -AutoSize | Out-String | ForEach-Object { $_.TrimEnd() } | ForEach-Object { Write-Host $_ }
+  $Items | Sort-Object Name | Format-Table Name, Reason, Suggested -AutoSize | Out-String | ForEach-Object { $_.TrimEnd() } | ForEach-Object { Write-Host $_ }
 }
 
 Assert-Administrator
 Assert-WingetAvailability
-Import-WingetPackages -ManifestPath $WingetManifestPath
-Install-ChocolateyPackages -ListPath $ChocoPackageListPath
 $manualFollowUps = Install-InventorySoftware -InventoryPath $InventoryPath
+if ($UsePackageManifests) {
+  Import-WingetPackages -ManifestPath $WingetManifestPath
+  Install-ChocolateyPackages -ListPath $ChocoPackageListPath
+}
 Invoke-ManualInstallers -ManifestPath $ManualInstallerManifestPath
 Show-ManualSteps -StepsPath $ManualStepsPath
 Write-ManualFollowUps -Items $manualFollowUps
