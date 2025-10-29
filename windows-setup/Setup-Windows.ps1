@@ -4,6 +4,7 @@ param(
   [string]$ManualInstallerManifestPath = "$PSScriptRoot/manual-installers.json",
   [string]$InventoryPath = "$PSScriptRoot/installed-software.json",
   [switch]$UsePackageManifests,
+  [switch]$DryRun,
   [string]$ManualStepsPath = "$PSScriptRoot/manual-steps.md"
 )
 
@@ -25,6 +26,7 @@ function Assert-WingetAvailability {
 }
 
 function Install-Chocolatey {
+  if ($DryRun) { return }
   if (Get-Command choco -ErrorAction SilentlyContinue) {
     return
   }
@@ -46,6 +48,14 @@ function Install-ChocolateyPackages {
     Write-Host "Chocolatey package list is empty." -ForegroundColor Yellow
     return
   }
+  if ($DryRun) {
+    foreach ($package in $packages) {
+      $cmd = "choco upgrade $package -y"
+      Write-Host "DRY-RUN: $cmd" -ForegroundColor Yellow
+      $script:PlannedActions += [PSCustomObject]@{ Name = $package; Action = 'Chocolatey'; Command = $cmd }
+    }
+    return
+  }
   Install-Chocolatey
   foreach ($package in $packages) {
     Write-Host "Installing Chocolatey package $package" -ForegroundColor Cyan
@@ -60,6 +70,12 @@ function Import-WingetPackages {
     return
   }
   Write-Host "Installing packages defined in $(Resolve-Path $ManifestPath)." -ForegroundColor Cyan
+  if ($DryRun) {
+    $cmd = "winget import --input `"$ManifestPath`" --accept-package-agreements --accept-source-agreements"
+    Write-Host "DRY-RUN: $cmd" -ForegroundColor Yellow
+    $script:PlannedActions += [PSCustomObject]@{ Name = 'winget-import'; Action = 'Winget'; Command = $cmd }
+    return
+  }
   try {
     & winget import --input "$ManifestPath" --accept-package-agreements --accept-source-agreements
     if ($LASTEXITCODE -ne 0) {
@@ -78,6 +94,12 @@ function Install-WingetPackage {
   )
   if (-not $Identifier) {
     return $false
+  }
+  if ($DryRun) {
+    $cmd = if ($Source) { "winget install --id `"$Identifier`" --source $Source --accept-package-agreements --accept-source-agreements --disable-interactivity" } else { "winget install --id `"$Identifier`" --accept-package-agreements --accept-source-agreements --disable-interactivity" }
+    Write-Host "DRY-RUN: $cmd" -ForegroundColor Yellow
+    $script:PlannedActions += [PSCustomObject]@{ Name = $Name; Action = 'Winget'; Command = $cmd }
+    return $true
   }
   $display = if ($Name) { "$Name ($Identifier)" } else { $Identifier }
   if ($Source) {
@@ -113,16 +135,23 @@ function Install-WingetPackageByExactName {
     [string]$PreferredSource
   )
   if (-not $Name) { return $false }
+  if ($DryRun) {
+    $srcLabel = if ($PreferredSource) { " --source $PreferredSource" } else { '' }
+    $cmd = "winget install --name `"$Name`" --exact$srcLabel --accept-package-agreements --accept-source-agreements --disable-interactivity"
+    Write-Host "DRY-RUN: $cmd" -ForegroundColor Yellow
+    $script:PlannedActions += [PSCustomObject]@{ Name = $Name; Action = 'Winget (fallback)'; Command = $cmd }
+    return $true
+  }
   $sourcesToTry = @()
   if ($PreferredSource) { $sourcesToTry += $PreferredSource }
   $sourcesToTry += @('winget', 'msstore', $null)
   foreach ($src in ($sourcesToTry | Select-Object -Unique)) {
     $displaySrc = if ($src) { $src } else { 'auto' }
     Write-Host "Trying winget exact-name install [$displaySrc]: $Name" -ForegroundColor Cyan
-    $args = @('install', '--name', $Name, '--exact', '--accept-package-agreements', '--accept-source-agreements', '--disable-interactivity')
-    if ($src) { $args += @('--source', $src) }
+    $wingetArgs = @('install', '--name', $Name, '--exact', '--accept-package-agreements', '--accept-source-agreements', '--disable-interactivity')
+    if ($src) { $wingetArgs += @('--source', $src) }
     try {
-      & winget @args
+      & winget @wingetArgs
       if ($LASTEXITCODE -eq 0) { return $true }
       Write-Verbose "winget exact-name install for '$Name' [$displaySrc] exited with code $LASTEXITCODE"
     } catch {
@@ -139,6 +168,12 @@ function Install-ChocolateyPackageFromInventory {
   )
   if (-not $Identifier) {
     return $false
+  }
+  if ($DryRun) {
+    $cmd = "choco upgrade $Identifier -y"
+    Write-Host "DRY-RUN: $cmd" -ForegroundColor Yellow
+    $script:PlannedActions += [PSCustomObject]@{ Name = $Name; Action = 'Chocolatey'; Command = $cmd }
+    return $true
   }
   Install-Chocolatey
   $display = if ($Name) { "$Name ($Identifier)" } else { $Identifier }
@@ -279,6 +314,12 @@ function Invoke-ManualInstallers {
     if (-not $run) {
       continue
     }
+    if ($DryRun) {
+      $cmd = if ($arguments) { "Start-Process -FilePath `"$installerPath`" -ArgumentList `"$arguments`" -Wait" } else { "Start-Process -FilePath `"$installerPath`" -Wait" }
+      Write-Host "  DRY-RUN: $cmd" -ForegroundColor Yellow
+      $script:PlannedActions += [PSCustomObject]@{ Name = $name; Action = 'ManualInstaller'; Command = $cmd }
+      continue
+    }
     Write-Host "  Running installer..." -ForegroundColor Green
     if ($arguments) {
       Start-Process -FilePath $installerPath -ArgumentList $arguments -Wait
@@ -307,8 +348,19 @@ function Write-ManualFollowUps {
   $Items | Sort-Object Name | Format-Table Name, Reason, Suggested -AutoSize | Out-String | ForEach-Object { $_.TrimEnd() } | ForEach-Object { Write-Host $_ }
 }
 
+function Write-PlannedActions {
+  param([array]$Items)
+  if (-not $Items -or $Items.Count -eq 0) {
+    Write-Host "No planned actions." -ForegroundColor Green
+    return
+  }
+  Write-Host "Planned actions (dry-run):" -ForegroundColor Yellow
+  $Items | Sort-Object Name | Format-Table Name, Action, Command -AutoSize | Out-String | ForEach-Object { $_.TrimEnd() } | ForEach-Object { Write-Host $_ }
+}
+
 Assert-Administrator
 Assert-WingetAvailability
+$script:PlannedActions = @()
 $manualFollowUps = Install-InventorySoftware -InventoryPath $InventoryPath
 if ($UsePackageManifests) {
   Import-WingetPackages -ManifestPath $WingetManifestPath
@@ -317,4 +369,5 @@ if ($UsePackageManifests) {
 Invoke-ManualInstallers -ManifestPath $ManualInstallerManifestPath
 Show-ManualSteps -StepsPath $ManualStepsPath
 Write-ManualFollowUps -Items $manualFollowUps
+if ($DryRun) { Write-PlannedActions -Items $script:PlannedActions }
 Write-Host "Setup script completed." -ForegroundColor Cyan

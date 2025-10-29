@@ -36,6 +36,9 @@ folder from an elevated PowerShell session when rebuilding a machine, updating t
 
    # Optionally also apply curated manifests in addition to inventory
    .\windows-setup\Setup-Windows.ps1 -UsePackageManifests
+
+   # Preview actions without changing the system
+   .\windows-setup\Setup-Windows.ps1 -DryRun
    ```
 
 3. Review any manual steps and follow-ups printed at the end.
@@ -57,3 +60,8 @@ folder from an elevated PowerShell session when rebuilding a machine, updating t
   - If Chocolatey identifier is present, tries Chocolatey.
   - Appx-only packages are listed as manual follow-ups.
 - Manual follow-up output includes a Suggested command to try in PowerShell (winget or choco) to speed up manual recovery.
+
+##### Dry run
+
+- `-DryRun` logs intended winget/choco/manual installer commands and prints a "Planned actions" table.
+- No installers are executed, no packages are installed, and Chocolatey bootstrap is skipped.
