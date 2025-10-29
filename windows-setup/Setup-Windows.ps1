@@ -3,8 +3,6 @@ param(
   [string]$ChocoPackageListPath = "$PSScriptRoot/choco-packages.txt",
   [string]$ManualInstallerManifestPath = "$PSScriptRoot/manual-installers.json",
   [string]$InventoryPath = "$PSScriptRoot/installed-software.json",
-  [string]$ConfigMapPath = "$PSScriptRoot/config-map.json",
-  [string]$ConfigRoot = "$PSScriptRoot/config-files",
   [string]$ManualStepsPath = "$PSScriptRoot/manual-steps.md"
 )
 
@@ -194,36 +192,6 @@ function Install-InventorySoftware {
   return $manualFollowUp
 }
 
-function Restore-ConfigFiles {
-  param(
-    [string]$MapPath,
-    [string]$SourceRoot
-  )
-  if (-not (Test-Path $MapPath)) {
-    Write-Warning "No config map found at $MapPath. Skipping configuration restore."
-    return
-  }
-  $entries = Get-Content $MapPath | ConvertFrom-Json
-  if (-not $entries) {
-    Write-Host "Config map is empty." -ForegroundColor Yellow
-    return
-  }
-  foreach ($entry in $entries) {
-    $source = Join-Path $SourceRoot $entry.Source
-    $destination = [Environment]::ExpandEnvironmentVariables($entry.Destination)
-    if (-not (Test-Path $source)) {
-      Write-Warning "Source path $source not found."
-      continue
-    }
-    $destinationDirectory = Split-Path $destination -Parent
-    if (-not (Test-Path $destinationDirectory)) {
-      New-Item -Path $destinationDirectory -ItemType Directory -Force | Out-Null
-    }
-    Copy-Item -Path $source -Destination $destination -Recurse -Force
-    Write-Host "Restored $(Resolve-Path $source) -> $destination" -ForegroundColor Green
-  }
-}
-
 function Invoke-ManualInstallers {
   param([string]$ManifestPath)
   if (-not (Test-Path $ManifestPath)) {
@@ -290,7 +258,6 @@ Assert-WingetAvailability
 Import-WingetPackages -ManifestPath $WingetManifestPath
 Install-ChocolateyPackages -ListPath $ChocoPackageListPath
 $manualFollowUps = Install-InventorySoftware -InventoryPath $InventoryPath
-Restore-ConfigFiles -MapPath $ConfigMapPath -SourceRoot $ConfigRoot
 Invoke-ManualInstallers -ManifestPath $ManualInstallerManifestPath
 Show-ManualSteps -StepsPath $ManualStepsPath
 Write-ManualFollowUps -Items $manualFollowUps
