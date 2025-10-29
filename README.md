@@ -1,16 +1,20 @@
 # Scripts
 
-A collection of personal scripts and configurations for development environment setup, automation,
-and DevOps tasks.
+Personal scripts and configuration helpers for day-to-day automation, environment setup, and DevOps tinkering. Expect things to change quickly and
+random stuff get added.
 
-## Contents
+## Structure
 
-* **Utils**: Contains utility scripts for various tasks.
-* **Kubernetes**: Collection of Kubernetes management scripts.
-* **Networking**: Network-related utilities.
-* **CI/CD**: Continuous Integration and Deployment scripts.
+- **bash/** – small shell utilities (Kubernetes pod cleanup, GitLab helpers, uptime info, etc.).
+- **pwsh/** – PowerShell scripts for media conversion and automation workflows.
+- **windows-setup/** – manifests, installers, and scripts for rebuilding a Windows workstation.
 
 ## Usage
 
-Each script contains its own documentation and usage instructions. Refer to the individual script
-files for specific usage details.
+Scripts are meant to be invoked directly and self-document through inline help or comments. Review each script before running it and adapt paths,
+credentials, or package lists to match your environment.
+
+### Windows setup snapshot
+
+`windows-setup` bundles winget / Chocolatey manifests, optional offline installers, config files, and manual follow-up notes. Run the scripts in that
+folder from an elevated PowerShell session when rebuilding a machine, updating the manifests as your toolkit evolves.
